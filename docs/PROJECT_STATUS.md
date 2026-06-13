@@ -88,7 +88,7 @@ self-service onboarding, **7-day trial**, **7-day grace period**.
 | **S3** | ✅ | `lib/payment-provider.js` (`MIDTRANS_MODE=mock\|live`), `lib/billing.js` `processPayment()` (idempotent), `/billing` page, `PayButton` |
 | **S4** | ✅ | `lib/subscription-gate.js` (`getActivePlan` 60s cache, `assertFeature`, `assertAiQuota`); gates: AI message route (403/429), Talent PDF exports (`export-invoice`/`export-spk`), UI gates via `/api/billing/plan-features` |
 | **S5** | 🔴 | Admin panel — explicitly **skipped/deferred** |
-| **S6** | ✅ | `runExpiryChecks()` — 3 sweeps (trial→grace, active→grace **from `currentPeriodEnd+7d`, not `now+7d`**, grace→suspended); Vercel cron hourly (`vercel.json`), `CRON_SECRET` bearer auth, `/api/cron/test-trigger` (dev-only, superadmin) |
+| **S6** | ✅ | `runExpiryChecks()` — 3 sweeps (trial→grace, active→grace **from `currentPeriodEnd+7d`, not `now+7d`**, grace→suspended); `CRON_SECRET` bearer auth, `/api/cron/test-trigger` (dev-only, superadmin). **⚠ Scheduled Vercel cron is currently DISABLED** for the Hobby test deploy (see backlog) — route + logic intact, manual runs via `/api/cron/test-trigger` |
 
 **Backfill done:** 3 legacy tenants (`azrina-beauty=1`, `cleora-beauty=2`,
 `delmoura=3`) given active **Enterprise** subs, `currentPeriodEnd=2099`.
@@ -148,9 +148,9 @@ Generic per-tenant connector config, **superadmin-only** admin UI.
 
 | Phase | Status | What |
 |---|---|---|
-| **CS1** | ✅ | `DataConnector` model; `lib/connectors/transforms.js` (**6 whitelisted transforms**: `string`, `int`, `currency`, `date_auto`, `date_dmy`, `static` — **NO eval / arbitrary code**); 12 `order_sync` connectors seeded (Cleora ×6, Azrina ×4, Delmoura ×2) |
+| **CS1** | ✅ | `DataConnector` model; `lib/connectors/transforms.js` (**7 whitelisted transforms**: `string`, `int`, `currency`, **`decimal`** (NP2a), `date_auto`, `date_dmy`, `static` — **NO eval / arbitrary code**); 12 `order_sync` connectors seeded (Cleora ×6, Azrina ×4, Delmoura ×2) |
 | **CS2** | ✅ | Admin UI at `/settings/connectors` (superadmin-gated via `session.isSuperAdmin`, added to `lib/auth.js`); `FieldMappingBuilder`; server-side `validateColumnMapping` on all 5 routes |
-| **CS3** | ✅ | `lib/connectors/sync-engine.js` — `syncConnector(connectorId)`, `applyTransform`/`parseDmy` (pure functions); `staticValues` merged **after** `columnMapping` (staticValues wins); `ORDER_COLUMNS` allowlist drops `salesChannelId` from the DB write (preserved in connector config) |
+| **CS3** | ✅ | `lib/connectors/sync-engine.js` — `syncConnector(connectorId)`, `applyTransform`/`parseDmy` (pure functions); `staticValues` merged **after** `columnMapping` (staticValues wins); `ORDER_COLUMNS` allowlist drops `salesChannelId` from the DB write (preserved in connector config). **NP2a extended this to a dispatcher** — `order_sync→Order` (incl. NP1 `OrderItem` dual-write) **or** `product_sync→Product` |
 | **CS4** | ✅ | `validateGoogleCredentials()` in `lib/google-sheets.js` — clear error instead of cryptic OpenSSL `DECODER` error when `GOOGLE_SERVICE_ACCOUNT_JSON` is a placeholder |
 | **CS5a** | ✅ | Sheet preview (`/api/connectors/[id]/preview`) — shows column indices + sample rows before configuring `columnMapping` |
 | **CS5b** | ⏳ | **PENDING USER ACTION** — configure the remaining 11 connectors' `sheetTab`/`columnMapping` using CS5a preview, **once real Google credentials are set up** (see `docs/CONNECTOR_SETUP.md`) |
@@ -187,9 +187,46 @@ In `components/layout/`:
 All reuse existing `.sv-*` classes and inherit responsive behavior automatically.
 Demo at **`/layout-demo`** (unlinked — delete when no longer needed).
 
+**When to use (validated this session):** SP1 uses `TwoPanelLayout` in production
+(confirmed the component works — KPI + table + chart). **SP2 deliberately did NOT** —
+its 6 visualizations are a **Category B dashboard**, so it uses a custom Tailwind
+responsive grid of `.sv-*` cards (+ `KpiStrip`/`ChartPanel`). **Rule of thumb:**
+one table + one chart → `TwoPanelLayout`; a multi-chart dashboard → custom grid
+reusing the same `.sv-*` building blocks. Knowing when *not* to use the layout is
+part of the design judgment.
+
+---
+
+## Key architecture decisions (this session — 2026-06-13)
+
+- **Connector engine is now generic across 2 target tables** — `Order`
+  (`order_sync`) and `Product` (`product_sync`) via a dispatcher. Proven
+  extensible for future `*_sync` types.
+- **Analytics = on-the-fly compute** (no snapshot tables) for now; pre-computation
+  is deferred until performance demands it. (HPP's `DailyHpp` is the deliberate
+  exception — a frozen snapshot for cost integrity.)
+- **"Placeholder, never dummy"** — fields with no data source (visits, conversion
+  rate, operational spend) render **"not yet available"**, never fabricated numbers.
+  Summary objects are shaped so these slot in as optional keys later **without
+  breaking existing consumers**.
+- **`connection_limit=1` is load-bearing** — all write paths use single awaited
+  statements, **never `$transaction`**, and the connection string must not change.
+- **NetProfit deferred on principle** — an un-standardized, tenant-specific metric
+  isn't shipped as if it were a general one; objective sales analytics first.
+
 ---
 
 ## Known issues / backlog (not yet scheduled)
+
+- **⏰ Subscription-expiry cron is DISABLED** (`vercel.json` is `{}`) for the
+  Hobby-plan test deploy — Hobby permits only a daily cron, so the trigger was
+  removed to avoid the hourly-cron deploy error. `runExpiryChecks()` and
+  `/api/cron/expire-subscriptions` are **intact**; manual runs work via
+  `/api/cron/test-trigger`. **RE-ENABLE as a DAILY cron before real paying tenants
+  exist** — add back to `vercel.json`:
+  `{ "crons": [ { "path": "/api/cron/expire-subscriptions", "schedule": "0 0 * * *" } ] }`.
+  Daily is sufficient (expiry is computed in DAYS). Safe to leave off now: the 3
+  backfilled tenants have `currentPeriodEnd=2099`, so none expire imminently.
 
 - **TZ-1 (now USER-VISIBLE — priority raised):** `Order.orderDate` stores date-only
   as `17:00 UTC` (= WIB midnight). Anything grouping by UTC day shows the prior
@@ -209,10 +246,33 @@ Demo at **`/layout-demo`** (unlinked — delete when no longer needed).
   `netprofit_sync` is built.
 - **`importNetProfits` (Cleora)** reads from **Azrina's** spreadsheet ID in the
   old app — verify intent before porting to `netprofit_sync`.
-- **Connector system supports `order_sync`→`Order` only.**
+- **Multi-tenant analytics gap:** only **tenant 2 (Cleora) has `OrderItem` data** —
+  the NP1 dual-write only ran for `cleora-shopee`. **SP1 and any OrderItem-based
+  analytics show data only for Cleora** until the other 11 connectors (CS5b) are
+  configured + synced. Other tenants have `Order` rows but **no `OrderItem`s**
+  (SP2's Order-level views work for them; SP1/product views don't yet).
+- **5 unmatched bundle SKUs** (`CL-WGS, CL-WGJB, CL-XJSS, CL-SSXFO, CL-HBCL`) get
+  **0 HPP** (not in the product catalog) — may need product rows or combination-SKU
+  support. Surfaced as `unmatchedSkus` (HPP) / unmatched-to-catalog (SP1).
+- **Mixed-tenant Product POC:** tenant 2 also holds **Azrina `AZ-` products** —
+  NP2a loaded all 193 rows to Cleora **ignoring the sheet's `tenant_id`**. Harmless
+  for Cleora HPP (only `CLE-`/`CL-` SKUs join) but **not correct multi-tenant**;
+  fix the loader to honor per-row tenant before onboarding more product sheets.
+- **Connector system supports `order_sync`→`Order` and `product_sync`→`Product`.**
   `ad_spend_sync`/`visit_sync`/`netprofit_sync` exist in `CONNECTOR_TYPES` but
   have no sync engine yet. `netprofit_sync` is also blocked on the missing
-  `NetProfit` model.
+  `NetProfit` model (NP3 deferred). **No `visit_sync` engine** is why SP2's
+  conversion-rate is a placeholder.
+- **SP2 value-bucket ladder is IDR-specific** (fixed `<100k / 100–250k / 250–500k /
+  500k–1M / 1M+`) — revisit for adaptive/quantile buckets if a multi-currency
+  tenant appears.
+- **Lint:** `react-hooks/set-state-in-effect` (error) + `exhaustive-deps` (warning)
+  exist identically in `sales/page.jsx`, SP1, and SP2 — a **consistent pre-existing
+  data-fetch pattern**, not SP2-specific. App-wide cleanup candidate.
+- **🔐 Rotate the Google service-account key:** a service-account JSON was pasted
+  into chat earlier this project. Even though it now lives only in `.env.local`,
+  **recommend rotating the key in Google Cloud Console** (treat the pasted one as
+  exposed).
 - **`cleora-b2b` / `azrina-b2b` connectors excluded** from the CS1 seed (belong to
   the future `netprofit_sync` pipeline, no column map in current docs).
 - **`.sv-page` defined twice** in `globals.css` (identical values, harmless
@@ -226,20 +286,38 @@ Quick checks (not a deep audit) of load-bearing claims:
 
 - **`DataConnector`, `Subscription`, `Plan`, `PaymentRecord` models** in
   `prisma/schema.prisma` — **✅ verified** (lines 1019, 1068, 1046, 1088).
-- **`lib/connectors/transforms.js` with the 6 transforms** — **✅ verified**
-  (`string, int, currency, date_auto, date_dmy, static`).
+- **`lib/connectors/transforms.js` with the 7 transforms** — **✅ verified**
+  (`string, int, currency, decimal, date_auto, date_dmy, static`).
 - **`components/layout/` has the 3 layout components** — **✅ verified**
   (`TwoPanelLayout.jsx`, `DetailLayout.jsx`, `TablePageLayout.jsx`).
-- **No `NetProfit` model in schema** (expected absent) — **✅ verified** (no
-  `NetProfit`/`DailyHpp`/`CurrentHpp` models exist). _Minor nuance: the
-  `OrderItem` model **does** exist (line 249) but is **not populated** — the claim
-  is about population/usage, which remains unimplemented, so no discrepancy._
+- **`DailyHpp` model now EXISTS and is populated** (NP2b) — _supersedes the
+  2026-06-12 "no `DailyHpp`" note._ `OrderItem` is now **populated** for
+  `cleora-shopee` (NP1). `NetProfit` model still absent — but that is now a
+  **deliberate deferral (NP3)**, not pending work.
 - Spot-checked existence: `lib/connectors/sync-engine.js`, `lib/subscription-gate.js`,
   `lib/billing.js`, `lib/payment-provider.js`, `lib/google-sheets.js`, `vercel.json`,
   `app/api/connectors/[id]/preview/route.js`, `docs/SALES_GSHEET_CONFIG.md`,
   `docs/CONNECTOR_SETUP.md` — **✅ all present**.
 
 **No discrepancies found.**
+
+### This session (2026-06-13) — live gate results
+
+Each ran against the live DB (tenant 2 = Cleora) via the modules' exact SQL:
+
+- **NP1 dual-write:** `cleora-shopee` → 606 orders, 643 OrderItems, **0 errors**
+  (after the `$transaction`-removal fix; previously 564/655 timeouts).
+- **NP2b HPP:** compute → 61 sku-rows, total HPP `11,110,404.2`, idempotent
+  re-run (no doubling), snapshot spot-check matched, exclusion (Batal/Belum Bayar)
+  honored — **all 6 gates ✅**.
+- **SP1 Product Analysis:** tenant-isolation (totals == direct tenant-scoped recount;
+  other tenant disjoint), metric spot-check, exclusion basis, unmatched-catalog
+  fallback, empty-tenant, serialization — **all ✅**.
+- **SP2 Order Analysis:** tenant-isolation (951 orders / 659,231,398 GMV ==
+  direct recount), time-series & AOV correctness, status funnel sums to 1306 (all
+  statuses) and real-sales = 1306 − 355 excluded = 951, granularity day≥week≥month,
+  distribution sums to 951, customer returning-count == independent repeat-username
+  count, `conversionRate: null`, empty-tenant, serialization — **all 7 gates ✅**.
 
 ---
 
