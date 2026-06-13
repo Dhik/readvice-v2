@@ -1,0 +1,61 @@
+{
+  "name": "readvice-v2",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3006",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "seed:e2e": "node scripts/seed-e2e.js",
+    "seed:tenant-company": "node scripts/seed-tenant-company-info.js",
+    "seed:talent": "node scripts/seed-talent.js",
+    "test:e2e:bridge": "node scripts/seed-e2e.js && node e2e/add-link-bridge.spec.js",
+    "test:e2e:exports": "node e2e/talent-exports.spec.js",
+    "test:ai": "node e2e/ai-insights.smoke.js",
+    "test:ai:chat": "node e2e/ai-chat.smoke.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.102.0",
+    "@fortawesome/fontawesome-svg-core": "^7.2.0",
+    "@fortawesome/free-brands-svg-icons": "^7.2.0",
+    "@fortawesome/free-solid-svg-icons": "^7.2.0",
+    "@fortawesome/react-fontawesome": "^3.2.0",
+    "@prisma/client": "^5.22.0",
+    "@tanstack/react-table": "^8.21.3",
+    "adm-zip": "^0.5.17",
+    "axios": "^1.13.5",
+    "bcryptjs": "^3.0.3",
+    "chart.js": "^4.5.1",
+    "clsx": "^2.1.1",
+    "google-trends-api": "^4.9.2",
+    "googleapis": "^171.4.0",
+    "next": "16.1.6",
+    "next-auth": "^4.24.13",
+    "playwright": "^1.58.2",
+    "prisma": "^5.22.0",
+    "react": "19.2.3",
+    "react-chartjs-2": "^5.3.1",
+    "react-datepicker": "^9.1.0",
+    "react-dom": "19.2.3",
+    "react-hook-form": "^7.71.2",
+    "react-hot-toast": "^2.6.0",
+    "react-markdown": "^10.1.0",
+    "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
+    "sweetalert2": "^11.26.20",
+    "tailwind-merge": "^3.5.0",
+    "xlsx": "^0.18.5",
+    "zustand": "^5.0.11"
+  },
+  "prisma": {
+    "seed": "node prisma/seed.js"
+  },
+  "devDependencies": {
+    "@faker-js/faker": "^10.3.0",
+    "@tailwindcss/postcss": "^4",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.6",
+    "tailwindcss": "^4"
+  }
+}

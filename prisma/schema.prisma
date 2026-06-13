@@ -1,0 +1,1131 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Core ───────────────────────────────────────────────
+
+model Tenant {
+  id        Int      @id @default(autoincrement())
+  name      String
+  slug      String   @unique
+  logoUrl   String?  @map("logo_url")
+  isActive  Boolean  @default(true) @map("is_active")
+
+  // Company metadata for document exports (Invoice / SPK-MoU)
+  invoiceDisplayName   String? @map("invoice_display_name")
+  invoiceDisplayHandle String? @map("invoice_display_handle")
+  legalName            String? @map("legal_name")
+  companyAddress       String? @map("company_address")
+  companyEmail         String? @map("company_email")
+  companyPhone         String? @map("company_phone")
+  contactPerson        String? @map("contact_person")
+  contactTitle         String? @map("contact_title")
+  contactPhone         String? @map("contact_phone")
+  senderBankName       String? @map("sender_bank_name")
+  senderBankAccount    String? @map("sender_bank_account")
+  senderAccountName    String? @map("sender_account_name")
+  companyNpwp          String? @map("company_npwp")
+  footerPhone          String? @map("footer_phone")
+  footerAddress        String? @map("footer_address")
+  logoFile             String? @map("logo_file")        // invoice header logo (public/img)
+  letterheadFile       String? @map("letterhead_file")  // MoU/SPK letterhead logo (public/img)
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  users             User[]       @relation("ActiveTenant")
+  assignedUsers     TenantUser[]
+  campaigns         Campaign[]
+  orders            Order[]
+  targets           Target[]
+  adSpentMeta       AdSpentMeta[]
+  adSpentShopee     AdSpentShopee[]
+  adSpentTiktok     AdSpentTiktok[]
+  adSpentLazada     AdSpentLazada[]
+  talents           Talent[]
+  approvals         Approval[]
+  marketingExpenses MarketingExpense[]
+  affiliateShopee    AffiliateShopee[]
+  affiliateTiktok    AffiliateTiktok[]
+  affiliateGmvTiktok AffiliateGmvTiktok[]
+  listingAffiliates  ListingAffiliate[]
+  reachAffiliates    ReachAffiliate[]
+  dealingAffiliates  DealingAffiliate[]
+  marketResearch      MarketResearch[]
+  kalodataCredential  KalodataCredential?
+  adsMonitoring       AdsMonitoring[]
+  subscription        Subscription?
+  paymentRecords      PaymentRecord[]
+  dataConnectors      DataConnector[]
+
+  @@map("tenants")
+}
+
+model User {
+  id              Int      @id @default(autoincrement())
+  name            String
+  email           String   @unique
+  password        String
+  currentTenantId Int?     @map("current_tenant_id")
+  roleId          Int?     @map("role_id")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  tenant          Tenant?    @relation("ActiveTenant", fields: [currentTenantId], references: [id])
+  tenants         TenantUser[]
+  userRoles       UserRole[]
+  employees       Employee[]
+  createdCampaigns Campaign[] @relation("CampaignCreatedBy")
+
+  @@map("users")
+}
+
+model Role {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  guardName String   @default("web") @map("guard_name")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  userRoles       UserRole[]
+  rolePermissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  guardName String   @default("web") @map("guard_name")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  rolePermissions RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId Int @map("user_id")
+  roleId Int @map("role_id")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model TenantUser {
+  tenantId Int @map("tenant_id")
+  userId   Int @map("user_id")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId],   references: [id], onDelete: Cascade)
+
+  @@id([tenantId, userId])
+  @@map("tenant_user")
+}
+
+model RolePermission {
+  roleId       Int @map("role_id")
+  permissionId Int @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ─── Reference Data ──────────────────────────────────────
+
+model SalesChannel {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("sales_channels")
+}
+
+model SocialMedia {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("social_media")
+}
+
+model MarketingCategory {
+  id       Int    @id @default(autoincrement())
+  name     String @unique
+  type     String
+  parentId Int?   @map("parent_id")
+
+  parent   MarketingCategory?  @relation("CategoryChildren", fields: [parentId], references: [id])
+  children MarketingCategory[] @relation("CategoryChildren")
+
+  @@map("marketing_categories")
+}
+
+model Shift {
+  id        Int    @id @default(autoincrement())
+  name      String @unique
+  startTime String @map("start_time")
+  endTime   String @map("end_time")
+
+  @@map("shifts")
+}
+
+model Kpi {
+  id                Int     @id @default(autoincrement())
+  name              String
+  type              String  @unique
+  calculationMethod String  @map("calculation_method") @db.Text
+  parameters        String? @db.Text
+
+  @@map("kpis")
+}
+
+// ─── Products ───────────────────────────────────────────
+
+model Product {
+  id              Int      @id @default(autoincrement())
+  tenantId        Int      @map("tenant_id")
+  name            String
+  sku             String?  @unique
+  platform        String?
+  category        String?
+  price           Decimal? @db.Decimal(15, 2)
+  hargaCogs       Decimal? @db.Decimal(15, 2) @map("harga_cogs")
+  hargaMarkup     Decimal? @db.Decimal(15, 2) @map("harga_markup")
+  hargaBatasBawah Decimal? @db.Decimal(15, 2) @map("harga_batas_bawah")
+  stock           Int?     @default(0)
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  orderItems OrderItem[]
+
+  @@index([tenantId])
+  @@map("products")
+}
+
+// ─── Orders ─────────────────────────────────────────────
+
+model Order {
+  id               Int      @id @default(autoincrement())
+  tenantId         Int      @map("tenant_id")
+  platform         String
+  orderId          String?  @map("order_id")
+  orderDate        DateTime @map("order_date")
+  status           String?
+  gmv              Decimal? @db.Decimal(15, 2)
+  nett             Decimal? @db.Decimal(15, 2)
+  qty              Int?     @default(0)
+  skuCount         Int?     @default(0) @map("sku_count")
+  customerId       Int?     @map("customer_id")
+  customerName     String?  @map("customer_name")
+  customerUsername String?  @map("customer_username")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant      @relation(fields: [tenantId], references: [id])
+  orderItems OrderItem[]
+
+  @@unique([orderId, tenantId])
+  @@index([tenantId, platform, orderDate])
+  @@map("orders")
+}
+
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int      @map("order_id")
+  productId   Int?     @map("product_id")
+  productName String?  @map("product_name")
+  sku         String?
+  qty         Int?
+  price       Decimal? @db.Decimal(15, 2)
+  subtotal    Decimal? @db.Decimal(15, 2)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ─── HPP (cost of goods snapshot — NP2b) ────────────────
+// Per-tenant, per-date, per-sku cost snapshot. hpp is FROZEN at compute time
+// (qty × Product.hargaCogs); reads never re-join Product. Feeds NetProfit (NP3).
+model DailyHpp {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  date      DateTime @db.Date
+  sku       String                      // normalized sku
+  qty       Int
+  hpp       Decimal  @db.Decimal(15, 2) // frozen at compute time
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, date, sku])
+  @@index([tenantId, date])
+  @@map("daily_hpp")
+}
+
+// ─── Targets ────────────────────────────────────────────
+
+model Target {
+  id         Int      @id @default(autoincrement())
+  tenantId   Int      @map("tenant_id")
+  platform   String
+  month      String
+  year       Int
+  targetGmv  Decimal? @db.Decimal(15, 2) @map("target_gmv")
+  targetNett Decimal? @db.Decimal(15, 2) @map("target_nett")
+  targetQty  Int?     @map("target_qty")
+  kpiType    String?  @map("kpi_type")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, platform, year, month], name: "tenantId_platform_year_month")
+  @@map("targets")
+}
+
+// ─── Campaigns ──────────────────────────────────────────
+
+model Campaign {
+  id           Int      @id @default(autoincrement())
+  tenantId     Int      @map("tenant_id")
+  title        String
+  type         String   @default("creative")
+  purpose      String?
+  platform     String?
+  startDate    String?  @map("start_date")
+  endDate      String?  @map("end_date")
+  budget       Decimal? @db.Decimal(15, 2)
+  totalExpense Decimal? @default(0) @db.Decimal(15, 2) @map("total_expense")
+  view         BigInt?  @default(0)
+  like         BigInt?  @default(0)
+  comment      BigInt?  @default(0)
+  gmv          Decimal? @default(0) @db.Decimal(15, 2)
+  cpm          Decimal? @default(0) @db.Decimal(10, 2)
+  status       String?  @default("active")
+  description  String?  @db.Text
+  createdById  Int?     @map("created_by")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  tenant     Tenant             @relation(fields: [tenantId], references: [id])
+  createdBy  User?              @relation("CampaignCreatedBy", fields: [createdById], references: [id])
+  kols           KeyOpinionLeader[]
+  contents       CampaignContent[]
+  statistics     CampaignStatistic[]
+  talentContents TalentContent[]
+
+  @@index([tenantId, type])
+  @@map("campaigns")
+}
+
+model KeyOpinionLeader {
+  id         Int      @id @default(autoincrement())
+  campaignId Int      @map("campaign_id")
+  tenantId   Int      @map("tenant_id")
+  name       String
+  platform   String?
+  followers  Int?
+  engRate    Decimal? @db.Decimal(5, 2) @map("eng_rate")
+  fee        Decimal? @db.Decimal(15, 2)
+  status     String?  @default("pending")
+  contentUrl String?  @map("content_url")
+  views      Int?     @default(0)
+  likes      Int?     @default(0)
+  comments   Int?     @default(0)
+  shares     Int?     @default(0)
+  gmv        Decimal? @db.Decimal(15, 2)
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@index([campaignId, tenantId])
+  @@map("key_opinion_leaders")
+}
+
+model CampaignContent {
+  id             Int       @id @default(autoincrement())
+  campaignId     Int       @map("campaign_id")
+  tenantId       Int       @map("tenant_id")
+  username       String
+  creatorName    String?   @map("creator_name")
+  pic            String?
+  taskName       String?   @map("task_name")
+  rateCard       Decimal?  @db.Decimal(15, 2) @map("rate_card")
+  channel        String?
+  link           String?
+  product        String?
+  boostCode      String?   @map("boost_code")
+  kodeAds        String?   @map("kode_ads")
+  view           BigInt?   @default(0)
+  like           BigInt?   @default(0)
+  comment        BigInt?   @default(0)
+  gmv            Decimal?  @default(0) @db.Decimal(15, 2)
+  cpm            Decimal?  @default(0) @db.Decimal(10, 2)
+  kolFollowers   BigInt?   @default(0) @map("kol_followers")
+  tiering        String?
+  isFyp          Boolean?  @default(false) @map("is_fyp")
+  isDelivered    Boolean?  @default(false) @map("is_delivered")
+  isPaid         Boolean?  @default(false) @map("is_paid")
+  uploadDate     DateTime? @map("upload_date")
+  additionalInfo String?   @map("additional_info") @db.Text
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  campaign   Campaign           @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  statistics ContentStatistic[]
+
+  @@index([campaignId, tenantId])
+  @@map("campaign_contents")
+}
+
+model ContentStatistic {
+  id        Int      @id @default(autoincrement())
+  contentId Int      @map("content_id")
+  date      DateTime
+  view      BigInt?  @default(0)
+  like      BigInt?  @default(0)
+  comment   BigInt?  @default(0)
+  gmv       Decimal? @default(0) @db.Decimal(15, 2)
+  spend     Decimal? @default(0) @db.Decimal(15, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  content CampaignContent @relation(fields: [contentId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, date])
+  @@index([contentId, date])
+  @@map("content_statistics")
+}
+
+model CampaignStatistic {
+  id         Int      @id @default(autoincrement())
+  campaignId Int      @map("campaign_id")
+  date       DateTime
+  view       BigInt?  @default(0)
+  like       BigInt?  @default(0)
+  comment    BigInt?  @default(0)
+  gmv        Decimal? @default(0) @db.Decimal(15, 2)
+  spend      Decimal? @default(0) @db.Decimal(15, 2)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  campaign Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+
+  @@unique([campaignId, date])
+  @@index([campaignId, date])
+  @@map("campaign_statistics")
+}
+
+// ─── KOL Profile (standalone contact database) ──────────
+
+model KolProfile {
+  id              Int      @id @default(autoincrement())
+  tenantId        Int      @map("tenant_id")
+  name            String
+  username        String
+  channel         String
+  niche           String?
+  followers       Int?     @default(0)
+  averageView     Int?     @default(0) @map("average_view")
+  engRate         Decimal? @db.Decimal(5, 2) @map("eng_rate")
+  skinType        String?  @map("skin_type")
+  skinConcern     String?  @map("skin_concern")
+  contentType     String?  @map("content_type")
+  rate            Decimal? @db.Decimal(15, 2)
+  cpm             Decimal? @db.Decimal(10, 4)
+  bankName        String?  @map("bank_name")
+  bankAccount     String?  @map("bank_account")
+  bankAccountName String?  @map("bank_account_name")
+  npwp            Boolean  @default(false)
+  npwpNumber      String?  @map("npwp_number")
+  nik             String?
+  address         String?  @db.Text
+  phoneNumber     String?  @map("phone_number")
+  notes           String?  @db.Text
+  product         String?
+  productDelivery Boolean  @default(false) @map("product_delivery")
+  status          String?  @default("active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, channel])
+  @@map("kol_profiles")
+}
+
+// ─── Ad Spend ───────────────────────────────────────────
+
+model AdSpentMeta {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int      @map("tenant_id")
+  date        DateTime
+  spent       Decimal  @db.Decimal(15, 2)
+  impressions BigInt?  @default(0)
+  clicks      Int?     @default(0)
+  conversions Int?     @default(0)
+  revenue     Decimal? @db.Decimal(15, 2)
+  roas        Decimal? @db.Decimal(8, 4)
+  cpc         Decimal? @db.Decimal(10, 4)
+  ctr         Decimal? @db.Decimal(8, 4)
+  adsetName   String?  @map("adset_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, date])
+  @@map("ad_spent_meta")
+}
+
+model AdSpentShopee {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int      @map("tenant_id")
+  date        DateTime
+  spent       Decimal  @db.Decimal(15, 2)
+  impressions BigInt?  @default(0)
+  clicks      Int?     @default(0)
+  orders      Int?     @default(0)
+  revenue     Decimal? @db.Decimal(15, 2)
+  roas        Decimal? @db.Decimal(8, 4)
+  cpc         Decimal? @db.Decimal(10, 4)
+  ctr         Decimal? @db.Decimal(8, 4)
+  adType      String?  @map("ad_type")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, date])
+  @@map("ad_spent_shopee")
+}
+
+model AdSpentTiktok {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int      @map("tenant_id")
+  date        DateTime
+  spent       Decimal  @db.Decimal(15, 2)
+  impressions BigInt?  @default(0)
+  clicks      Int?     @default(0)
+  conversions Int?     @default(0)
+  revenue     Decimal? @db.Decimal(15, 2)
+  roas        Decimal? @db.Decimal(8, 4)
+  cpc         Decimal? @db.Decimal(10, 4)
+  ctr         Decimal? @db.Decimal(8, 4)
+  adName      String?  @map("ad_name")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, date])
+  @@map("ad_spent_tiktok")
+}
+
+model AdSpentLazada {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  date      DateTime
+  spent     Decimal  @db.Decimal(15, 2)
+  clicks    Int?     @default(0)
+  orders    Int?     @default(0)
+  revenue   Decimal? @db.Decimal(15, 2)
+  roas      Decimal? @db.Decimal(8, 4)
+  cpc       Decimal? @db.Decimal(10, 4)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, date])
+  @@map("ad_spent_lazada")
+}
+
+model AdSpentSocialMedia {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  platform  String
+  date      DateTime
+  amount    Decimal  @db.Decimal(15, 2)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, platform, date])
+  @@map("ad_spent_social_media")
+}
+
+// ─── Marketing ──────────────────────────────────────────
+
+model Marketing {
+  id                Int      @id @default(autoincrement())
+  tenantId          Int      @map("tenant_id")
+  date              DateTime
+  type              String
+  marketingCategory String   @map("marketing_category")
+  subCategory       String?  @map("sub_category")
+  amount            Decimal  @db.Decimal(15, 2)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([tenantId, date])
+  @@map("marketing")
+}
+
+model MarketingExpense {
+  id                Int      @id @default(autoincrement())
+  tenantId          Int      @map("tenant_id")
+  date              DateTime
+  type              String
+  marketingCategory String   @map("marketing_category")
+  subCategory       String?  @map("sub_category")
+  amount            Decimal  @db.Decimal(15, 2)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, date])
+  @@map("marketing_expenses")
+}
+
+// ─── Visits ─────────────────────────────────────────────
+
+model Visit {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int      @map("tenant_id")
+  platform    String
+  date        DateTime
+  visitAmount Int      @default(0) @map("visit_amount")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, platform, date])
+  @@map("visits")
+}
+
+// ─── Talent ─────────────────────────────────────────────
+
+model Talent {
+  id                    Int       @id @default(autoincrement())
+  tenantId              Int       @map("tenant_id")
+  noDocument            String?   @map("no_document")
+  username              String
+  talentName            String    @map("talent_name")
+  type                  String
+  contentType           String?   @map("content_type")
+  produk                String?
+  pic                   String?
+  bulanRunning          String?   @map("bulan_running")
+  niche                 String?
+  followers             Int?
+  address               String?
+  phoneNumber           String?   @map("phone_number")
+  bank                  String?
+  noRekening            String?   @map("no_rekening")
+  namaRekening          String?   @map("nama_rekening")
+  noNpwp                String?   @map("no_npwp")
+  pengajuanTransferDate DateTime? @map("pengajuan_transfer_date")
+  listingAffiliateId    Int?      @map("listing_affiliate_id")
+  dealingDate           DateTime? @map("dealing_date")
+  dealingNumber         String?   @map("dealing_number")
+  nik                   String?
+  priceRate             Decimal?  @db.Decimal(15, 2) @map("price_rate")
+  firstRateCard         Decimal?  @db.Decimal(15, 2) @map("first_rate_card")
+  slotFinal             Int?      @map("slot_final")
+  rateFinal             Decimal?  @db.Decimal(15, 2) @map("rate_final")
+  dpAmount              Decimal?  @db.Decimal(15, 2) @map("dp_amount")
+  taxPercentage         Decimal?  @db.Decimal(5, 2)  @map("tax_percentage")
+  scopeOfWork           String?   @map("scope_of_work")
+  masaKerjasama         String?   @map("masa_kerjasama")
+  platform              String?
+  affiliateStatus       String?   @map("affiliate_status")
+  gdriveKolAccepting    String?   @map("gdrive_kol_accepting")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id])
+  contents       TalentContent[]
+  payments       TalentPayment[]
+  contentCreator ContentCreator?
+
+  @@index([tenantId])
+  @@map("talents")
+}
+
+model ContentCreator {
+  id                    Int       @id @default(autoincrement())
+  talentId              Int       @unique @map("talent_id")
+  tenantId              Int       @map("tenant_id")
+  objektif              String?
+  pillar                String?
+  subPillar             String?   @map("sub_pillar")
+  hook                  String?
+  referensi             String?
+  briefKonten           String?   @map("brief_konten")
+  caption               String?
+  assigneeContentEditor String?   @map("assignee_content_editor")
+  bookingTalentDate     DateTime? @map("booking_talent_date")
+  bookingVenueDate      DateTime? @map("booking_venue_date")
+  productionDate        DateTime? @map("production_date")
+
+  talent Talent @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@map("content_creators")
+}
+
+model TalentContent {
+  id                Int       @id @default(autoincrement())
+  talentId          Int       @map("talent_id")
+  campaignId        Int?      @map("campaign_id")
+  dealingUploadDate DateTime? @map("dealing_upload_date")
+  postingDate       DateTime? @map("posting_date")
+  done              Boolean   @default(false)
+  uploadLink        String?   @map("upload_link")
+  finalRateCard     Decimal?  @db.Decimal(15, 2) @map("final_rate_card")
+  isRefund          Boolean   @default(false) @map("is_refund")
+  picCode           String?   @map("pic_code")
+  boostCode         String?   @map("boost_code")
+  createdBy         Int?      @map("created_by")
+  createdAt         DateTime  @default(now()) @map("created_at")
+
+  talent   Talent    @relation(fields: [talentId], references: [id], onDelete: Cascade)
+  campaign Campaign? @relation(fields: [campaignId], references: [id])
+
+  @@index([talentId])
+  @@map("talent_content")
+}
+
+model TalentPayment {
+  id               Int       @id @default(autoincrement())
+  talentId         Int       @map("talent_id")
+  statusPayment    String    @map("status_payment")
+  tanggalPengajuan DateTime? @map("tanggal_pengajuan")
+  donePayment      DateTime? @map("done_payment")
+  amountTf         Decimal?  @db.Decimal(15, 2) @map("amount_tf")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  talent Talent @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@index([talentId])
+  @@map("talent_payments")
+}
+
+model Approval {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  name      String
+  photo     String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("approvals")
+}
+
+// ─── Employees ──────────────────────────────────────────
+
+model Employee {
+  id                Int       @id @default(autoincrement())
+  tenantId          Int       @map("tenant_id")
+  userId            Int?      @map("user_id")
+  employeeId        String    @unique @map("employee_id")
+  name              String
+  email             String?
+  jobPosition       String?   @map("job_position")
+  organization      String?
+  jobLevel          String?   @map("job_level")
+  employmentStatus  String?   @map("employment_status")
+  birthDate         DateTime? @map("birth_date")
+  birthPlace        String?   @map("birth_place")
+  gender            String?
+  religion          String?
+  bloodType         String?   @map("blood_type")
+  maritalStatus     String?   @map("marital_status")
+  nik               String?
+  npwp              String?
+  ptkpStatus        String?   @map("ptkp_status")
+  bankName          String?   @map("bank_name")
+  bankAccount       String?   @map("bank_account")
+  bankAccountHolder String?   @map("bank_account_holder")
+  phoneNumber       String?   @map("phone_number")
+  address           String?   @db.Text
+  joinDate          DateTime? @map("join_date")
+  isActive          Boolean   @default(true) @map("is_active")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  updatedAt         DateTime  @updatedAt @map("updated_at")
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([tenantId])
+  @@map("employees")
+}
+
+// ─── Affiliate Shopee ────────────────────────────────────────────────────────
+
+model AffiliateShopee {
+  id                  Int      @id @default(autoincrement())
+  tenantId            Int      @map("tenant_id")
+  date                DateTime @db.Date
+  affiliateId         String?  @map("affiliate_id")
+  username            String
+  channel             String?
+  orderType           String?  @map("order_type")
+  produkTerjual       Int?     @default(0) @map("produk_terjual")
+  pesanan             Int?     @default(0)
+  clicks              Int?     @default(0)
+  omzetPenjualan      Decimal? @db.Decimal(15,2) @map("omzet_penjualan")
+  biayaIklan          Decimal? @db.Decimal(15,2) @map("biaya_iklan")
+  komisiAffiliate     Decimal? @db.Decimal(15,2) @map("komisi_affiliate")
+  roi                 Decimal? @db.Decimal(8,4)
+  totalPembeli        Int?     @default(0) @map("total_pembeli")
+  pembeliBaru         Int?     @default(0) @map("pembeli_baru")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, date])
+  @@index([tenantId, username, date])
+  @@map("affiliate_shopee")
+}
+
+// ─── Affiliate TikTok Creator ────────────────────────────────────────────────
+
+model AffiliateTiktok {
+  id                      Int      @id @default(autoincrement())
+  tenantId                Int      @map("tenant_id")
+  date                    DateTime @db.Date
+  creatorUsername         String   @map("creator_username")
+  affiliateGmv            Decimal? @db.Decimal(15,2) @map("affiliate_gmv")
+  affiliateOrders         Decimal? @db.Decimal(15,2) @map("affiliate_orders")
+  affiliateRefundedGmv    Decimal? @db.Decimal(15,2) @map("affiliate_refunded_gmv")
+  affiliateRefundedOrders Decimal? @db.Decimal(15,2) @map("affiliate_refunded_orders")
+  productImpression       BigInt?  @default(0) @map("product_impression")
+  estCommission           Decimal? @db.Decimal(15,2) @map("est_commission")
+  avgOrderValue           Decimal? @db.Decimal(15,2) @map("avg_order_value")
+  productsSold            Int?     @default(0) @map("products_sold")
+  estimatedOrders         Decimal? @db.Decimal(15,2) @map("estimated_orders")
+  impressions             BigInt?  @default(0)
+  videoClicks             Int?     @default(0) @map("video_clicks")
+  videoComments           Int?     @default(0) @map("video_comments")
+  videoLikes              Int?     @default(0) @map("video_likes")
+  videoShares             Int?     @default(0) @map("video_shares")
+  videoViews              BigInt?  @default(0) @map("video_views")
+  affiliateFollowers      Int?     @default(0) @map("affiliate_followers")
+  affiliateVideos         Int?     @default(0) @map("affiliate_videos")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, date])
+  @@index([tenantId, creatorUsername, date])
+  @@map("affiliate_tiktok")
+}
+
+// ─── Affiliate GMV TikTok (video-level / not-found) ─────────────────────────
+
+model AffiliateGmvTiktok {
+  id           Int       @id @default(autoincrement())
+  tenantId     Int       @map("tenant_id")
+  username     String?
+  link         String?
+  postingDate  DateTime? @db.Date @map("posting_date")
+  gmv          Decimal?  @db.Decimal(15,2)
+  linkNotFound Boolean   @default(false) @map("link_not_found")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId, linkNotFound])
+  @@map("affiliate_gmv_tiktok")
+}
+
+// ─── Listing Affiliate ───────────────────────────────────────────────────────
+
+model ListingAffiliate {
+  id                  Int      @id @default(autoincrement())
+  tenantId            Int      @map("tenant_id")
+  date                DateTime @db.Date
+  pic                 String?
+  username            String
+  followers           Int?     @default(0)
+  gmv                 Decimal? @db.Decimal(15,2)
+  kontak              String?
+  sowCategory         String?  @map("sow_category")
+  salesChannelId      Int?     @map("sales_channel_id")
+  roas                Decimal? @db.Decimal(8,4) @default(0)
+  gpm                 Decimal? @db.Decimal(8,4) @default(0)
+  rateCard            Decimal? @db.Decimal(15,2) @default(0) @map("rate_card")
+  slot                Int?     @default(0)
+  remark              String?  @default("-")
+  keterangan          String?  @default("-")
+  approval            String?  @default("Pending")
+  listingStatus       String?  @default("Pending") @map("listing_status")
+  talentCreatedStatus Boolean  @default(false) @map("talent_created_status")
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id])
+  reachAffiliates  ReachAffiliate[]
+  dealingAffiliate DealingAffiliate?
+
+  @@index([tenantId, approval, listingStatus])
+  @@map("listing_affiliate")
+}
+
+// ─── Reach Affiliate ─────────────────────────────────────────────────────────
+
+model ReachAffiliate {
+  id                 Int       @id @default(autoincrement())
+  tenantId           Int       @map("tenant_id")
+  listingAffiliateId Int       @map("listing_affiliate_id")
+  pic                String?
+  reachDate          DateTime? @db.Date @map("reach_date")
+  status             String?
+  notes              String?   @db.Text
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  listingAffiliate ListingAffiliate @relation(fields: [listingAffiliateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, listingAffiliateId])
+  @@map("reach_affiliate")
+}
+
+// ─── Dealing Affiliate ────────────────────────────────────────────────────────
+
+model DealingAffiliate {
+  id                           Int       @id @default(autoincrement())
+  tenantId                     Int       @map("tenant_id")
+  listingAffiliateId           Int       @unique @map("listing_affiliate_id")
+  pic                          String?
+  dealingDate                  DateTime? @db.Date @map("dealing_date")
+  rateCard                     Decimal?  @db.Decimal(15,2) @map("rate_card")
+  slot                         Int?      @default(0)
+  platform                     String?
+  approvalFromLeaderStatus     String    @default("Pending") @map("approval_from_leader_status")
+  approvalFromLeaderBy         String?   @map("approval_from_leader_by")
+  approvalFromLeaderDate       DateTime? @map("approval_from_leader_date")
+  approvalFromManagementStatus String    @default("Pending") @map("approval_from_management_status")
+  approvalFromManagementBy     String?   @map("approval_from_management_by")
+  approvalFromManagementDate   DateTime? @map("approval_from_management_date")
+  notes                        String?   @db.Text
+  staffNotes                   String?   @db.Text @map("staff_notes")
+  createdAt                    DateTime  @default(now()) @map("created_at")
+  updatedAt                    DateTime  @updatedAt @map("updated_at")
+
+  tenant           Tenant           @relation(fields: [tenantId], references: [id])
+  listingAffiliate ListingAffiliate @relation(fields: [listingAffiliateId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, approvalFromLeaderStatus, approvalFromManagementStatus])
+  @@map("dealing_affiliate")
+}
+
+// ─── Market Research ─────────────────────────────────
+
+model MarketResearch {
+  id          String   @id @default(cuid())
+  tenantId    Int      @map("tenant_id")
+  keyword     String
+  source      String   @default("tokopedia")
+  status      String   @default("processing")
+  trendsData  Json?    @map("trends_data")
+  products    Json?
+  summary     Json?
+  logs        Json?
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@index([tenantId])
+  @@map("market_research")
+}
+
+model KalodataCredential {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @unique @map("tenant_id")
+  phone     String
+  password  String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id])
+
+  @@map("kalodata_credentials")
+}
+
+// ─── Ads Monitoring (targets vs actuals by channel/day) ──────────────────────
+
+model AdsMonitoring {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  date           DateTime @db.Date
+  channel        String
+
+  gmvTarget      Decimal? @db.Decimal(15, 2) @map("gmv_target")
+  gmvActual      Decimal? @db.Decimal(15, 2) @map("gmv_actual")
+  spentTarget    Decimal? @db.Decimal(15, 2) @map("spent_target")
+  spentActual    Decimal? @db.Decimal(15, 2) @map("spent_actual")
+  roasTarget     Decimal? @db.Decimal(8, 4)  @map("roas_target")
+  roasActual     Decimal? @db.Decimal(8, 4)  @map("roas_actual")
+  cpaTarget      Decimal? @db.Decimal(15, 2) @map("cpa_target")
+  cpaActual      Decimal? @db.Decimal(15, 2) @map("cpa_actual")
+  aovToCpaTarget Decimal? @db.Decimal(8, 4)  @map("aov_to_cpa_target")
+  aovToCpaActual Decimal? @db.Decimal(8, 4)  @map("aov_to_cpa_actual")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt     @map("updated_at")
+
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+
+  @@unique([tenantId, date, channel])
+  @@index([tenantId, date])
+  @@index([channel])
+  @@map("ads_monitoring")
+}
+
+// ─── AI chat (AI-2) ─────────────────────────────────────
+model AiConversation {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  userId    Int      @map("user_id")
+  title     String
+  summary   String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  messages AiMessage[]
+
+  @@index([tenantId, userId])
+  @@map("ai_conversations")
+}
+
+model AiMessage {
+  id             Int      @id @default(autoincrement())
+  conversationId Int      @map("conversation_id")
+  role           String
+  content        String   @db.Text
+  inputTokens    Int?     @map("input_tokens")
+  outputTokens   Int?     @map("output_tokens")
+  chart          Json?                            // persisted Chart.js spec (already validated)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId])
+  @@map("ai_messages")
+}
+
+// ─── Data Connectors (generic Google Sheets sync) ────────
+
+model DataConnector {
+  id             Int       @id @default(autoincrement())
+  tenantId       Int       @map("tenant_id")
+  name           String
+  connectorType  String    @map("connector_type")   // order_sync | ad_spend_sync | visit_sync | netprofit_sync
+  spreadsheetId  String    @map("spreadsheet_id")
+  sheetTab       String    @map("sheet_tab")
+  dataRange      String    @map("data_range")
+  targetTable    String    @map("target_table")
+  upsertKey      Json      @map("upsert_key")
+  columnMapping  Json      @map("column_mapping")
+  staticValues   Json?     @map("static_values")
+  isActive       Boolean   @default(true) @map("is_active")
+  lastSyncAt     DateTime? @map("last_sync_at")
+  lastSyncResult Json?     @map("last_sync_result")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, name])
+  @@index([tenantId, connectorType])
+  @@map("data_connectors")
+}
+
+// ─── Subscriptions & Billing ─────────────────────────────
+
+model Plan {
+  id             Int      @id @default(autoincrement())
+  name           String
+  slug           String   @unique
+  priceMonthly   Decimal  @db.Decimal(15, 2) @map("price_monthly")
+  currency       String   @default("IDR")
+  maxUsers       Int?     @map("max_users")
+  maxTenants     Int?     @map("max_tenants")
+  hasAi          Boolean  @default(false) @map("has_ai")
+  aiQuotaMonthly Int?     @map("ai_quota_monthly")
+  hasPdfExports  Boolean  @default(false) @map("has_pdf_exports")
+  hasMultiTenant Boolean  @default(false) @map("has_multi_tenant")
+  isActive       Boolean  @default(true) @map("is_active")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  subscriptions  Subscription[]
+  paymentRecords PaymentRecord[]
+
+  @@map("plans")
+}
+
+model Subscription {
+  id                 Int       @id @default(autoincrement())
+  tenantId           Int       @unique @map("tenant_id")
+  planId             Int       @map("plan_id")
+  status             String
+  currentPeriodStart DateTime  @map("current_period_start")
+  currentPeriodEnd   DateTime  @map("current_period_end")
+  gracePeriodEnd     DateTime? @map("grace_period_end")
+  cancelledAt        DateTime? @map("cancelled_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  plan           Plan            @relation(fields: [planId], references: [id])
+  paymentRecords PaymentRecord[]
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+model PaymentRecord {
+  id                    Int       @id @default(autoincrement())
+  tenantId              Int       @map("tenant_id")
+  subscriptionId        Int       @map("subscription_id")
+  midtransOrderId       String    @unique @map("midtrans_order_id")
+  midtransTransactionId String?   @map("midtrans_transaction_id")
+  amount                Decimal   @db.Decimal(15, 2)
+  currency              String    @default("IDR")
+  status                String
+  planId                Int       @map("plan_id")
+  periodMonths          Int       @default(1) @map("period_months")
+  paidAt                DateTime? @map("paid_at")
+  snapToken             String?   @map("snap_token")
+  snapUrl               String?   @map("snap_url")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  tenant       Tenant       @relation(fields: [tenantId], references: [id])
+  subscription Subscription @relation(fields: [subscriptionId], references: [id])
+  plan         Plan         @relation(fields: [planId], references: [id])
+
+  @@index([tenantId, status])
+  @@index([subscriptionId])
+  @@map("payment_records")
+}
