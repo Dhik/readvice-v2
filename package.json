@@ -4,8 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3006",
-    "build": "next build",
+    "build": "prisma generate && next build",
     "start": "next start",
+    "postinstall": "prisma generate",
     "lint": "eslint",
     "seed:e2e": "node scripts/seed-e2e.js",
     "seed:tenant-company": "node scripts/seed-tenant-company-info.js",
