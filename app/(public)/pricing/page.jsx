@@ -6,6 +6,11 @@ export const metadata = {
   description: 'Simple, transparent pricing for growing e-commerce brands.',
 }
 
+// Queries the DB (plan.findMany) at render — render at REQUEST time, not build.
+// Without this, Next tries to statically prerender this public page and runs the
+// Prisma query during `next build`, which fails on Vercel.
+export const dynamic = 'force-dynamic'
+
 // Server component — public, no auth required.
 export default async function PricingPage() {
   const plans = await prisma.plan.findMany({

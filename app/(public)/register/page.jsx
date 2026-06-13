@@ -6,6 +6,11 @@ export const metadata = {
   description: 'Start your 7-day free trial. No credit card required.',
 }
 
+// Queries the DB (plan.findMany) at render — render at REQUEST time, not build.
+// Public page, so Next would otherwise try to statically prerender it and run the
+// Prisma query during `next build` (fails on Vercel).
+export const dynamic = 'force-dynamic'
+
 // Server component — fetches active plans, reads the pre-selected plan slug,
 // then hands off to the client form.
 export default async function RegisterPage({ searchParams }) {

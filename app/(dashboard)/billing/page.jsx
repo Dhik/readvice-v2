@@ -6,6 +6,12 @@ import PayButton from '@/components/billing/PayButton'
 
 export const metadata = { title: 'Billing — Readvice' }
 
+// Queries the DB at render. Already implicitly dynamic (getServerSession reads
+// cookies, which opts out of static generation), but we declare it explicitly so
+// the intent is clear and a future refactor that removes the cookie read can't
+// silently make this page prerender-at-build.
+export const dynamic = 'force-dynamic'
+
 const STATUS_BADGE = {
   trial:     { cls: 'badge-info',    label: 'Trial' },
   active:    { cls: 'badge-success', label: 'Active' },
