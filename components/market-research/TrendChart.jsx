@@ -1,12 +1,6 @@
 'use client'
 import { Line } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale, LinearScale, PointElement, LineElement,
-  Title, Tooltip, Legend, Filler,
-} from 'chart.js'
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler)
+import { seriesColor, withAlpha } from '@/lib/charts/theme' // central register + defaults
 
 export default function TrendChart({ trendsData }) {
   const timeline = trendsData?.timeline ?? []
@@ -16,8 +10,8 @@ export default function TrendChart({ trendsData }) {
     datasets: [{
       label:           'Search Interest (Indonesia)',
       data:            timeline.map(d => d.value),
-      borderColor:     'var(--color-orange)',
-      backgroundColor: 'rgba(224,123,57,.12)',
+      borderColor:     seriesColor(0),
+      backgroundColor: withAlpha(seriesColor(0), 0.12),
       borderWidth:     2,
       pointRadius:     2,
       tension:         0.35,

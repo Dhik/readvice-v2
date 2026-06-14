@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react'
 import ChartPanel from '@/components/charts/ChartPanel'
 import Badge from '@/components/ui/Badge'
+import { seriesColor, withAlpha } from '@/lib/charts/theme'
 import { formatCurrency } from '@/lib/utils'
 
 const BRACKET_VARIANT = {
@@ -38,8 +39,8 @@ export default function RoasAnalysisPanel({ startDate, endDate }) {
   const lineData = rows.length ? {
     labels: rows.map(r => PLATFORM_LABEL[r.platform] ?? r.platform),
     datasets: [
-      { label: 'Spent', data: rows.map(r => r.spent),     borderColor: '#E07B39', backgroundColor: 'rgba(224,123,57,0.6)', fill: false, tension: 0.3 },
-      { label: 'GMV',   data: rows.map(r => r.gmv ?? 0),  borderColor: '#2C3639', backgroundColor: 'rgba(44,54,57,0.5)',   fill: false, tension: 0.3 },
+      { label: 'Spent', data: rows.map(r => r.spent),     borderColor: seriesColor(0), backgroundColor: withAlpha(seriesColor(0), 0.6), fill: false, tension: 0.3 },
+      { label: 'GMV',   data: rows.map(r => r.gmv ?? 0),  borderColor: seriesColor(1), backgroundColor: withAlpha(seriesColor(1), 0.5), fill: false, tension: 0.3 },
     ],
   } : null
 

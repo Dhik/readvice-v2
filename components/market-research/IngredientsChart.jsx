@@ -1,12 +1,6 @@
 'use client'
 import { Bar } from 'react-chartjs-2'
-import {
-  Chart as ChartJS,
-  CategoryScale, LinearScale, BarElement,
-  Title, Tooltip,
-} from 'chart.js'
-
-ChartJS.register(CategoryScale, LinearScale, BarElement, Title, Tooltip)
+import { seriesColor, withAlpha } from '@/lib/charts/theme' // central register + defaults
 
 export default function IngredientsChart({ ingredients = [] }) {
   if (!ingredients.length) {
@@ -25,7 +19,7 @@ export default function IngredientsChart({ ingredients = [] }) {
     labels,
     datasets: [{
       data:            values,
-      backgroundColor: values.map((v, idx) => idx === 0 ? 'var(--color-orange)' : idx < 3 ? 'rgba(224,123,57,.65)' : 'rgba(224,123,57,.3)'),
+      backgroundColor: values.map((v, idx) => idx === 0 ? seriesColor(0) : idx < 3 ? withAlpha(seriesColor(0), 0.65) : withAlpha(seriesColor(0), 0.3)),
       borderRadius:    4,
       barThickness:    18,
     }],
@@ -51,7 +45,7 @@ export default function IngredientsChart({ ingredients = [] }) {
         grid:  { color: 'rgba(0,0,0,.05)' },
       },
       y: {
-        ticks: { font: { size: 11 }, color: 'var(--color-dark1)' },
+        ticks: { font: { size: 11 }, color: seriesColor(1) },
         grid:  { display: false },
       },
     },

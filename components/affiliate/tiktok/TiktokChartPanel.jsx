@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef } from 'react'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
+import { Chart } from 'chart.js'
+import { seriesColor, SEMANTIC, withAlpha } from '@/lib/charts/theme'
 
 const fmtNum = n => new Intl.NumberFormat('id-ID').format(n ?? 0)
 const fmtPct = n => (n ?? 0).toFixed(2) + '%'
@@ -29,7 +29,7 @@ export default function TiktokChartPanel({ dateFrom, dateTo, metrics }) {
         labels: ['Commission', 'GMV'],
         datasets: [{
           data: [0, 0],
-          backgroundColor: ['rgba(44,54,57,0.85)', 'rgba(224,123,57,0.85)'],
+          backgroundColor: [withAlpha(seriesColor(1), 0.85), withAlpha(seriesColor(0), 0.85)],
           borderRadius: 5,
         }],
       },
@@ -49,7 +49,7 @@ export default function TiktokChartPanel({ dateFrom, dateTo, metrics }) {
       type: 'doughnut',
       data: {
         labels: ['Net GMV', 'Commission'],
-        datasets: [{ data: [1, 0], backgroundColor: ['#E07B39', '#2C3639'] }],
+        datasets: [{ data: [1, 0], backgroundColor: [seriesColor(0), seriesColor(1)] }],
       },
       options: {
         cutout: '65%',
@@ -85,7 +85,7 @@ export default function TiktokChartPanel({ dateFrom, dateTo, metrics }) {
   const comm     = metrics?.comm ?? 0
   const ratio    = comm > 0 ? gmv / comm : 0
   const barWidth = Math.min(100, (ratio / 4) * 100)
-  const barColor = ratio >= 2 ? '#28a745' : ratio >= 1 ? '#E07B39' : '#dc3545'
+  const barColor = ratio >= 2 ? SEMANTIC.success : ratio >= 1 ? seriesColor(0) : SEMANTIC.danger
   const avgConv  = metrics && metrics.n > 0 ? metrics.conv / metrics.n : 0
 
   return (

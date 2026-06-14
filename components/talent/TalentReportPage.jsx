@@ -1,13 +1,15 @@
 'use client'
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
+import { Chart } from 'chart.js'
+import { seriesColor } from '@/lib/charts/theme'
 
+// Same brand hexes as the palette (orange/dark1/dark2/brown) — sourced from theme
+// so the doughnut and the type dots stay identical and centrally themed.
 const TYPE_COLORS = {
-  Affiliate:         '#E07B39',
-  KOL:               '#2C3639',
-  'Content Creator': '#3F4E4F',
-  Clipper:           '#8B5E3C',
+  Affiliate:         seriesColor(0),
+  KOL:               seriesColor(1),
+  'Content Creator': seriesColor(2),
+  Clipper:           seriesColor(3),
 }
 const TYPES      = ['Affiliate', 'KOL', 'Content Creator', 'Clipper']
 const TABLE_LIMIT = 15   // client-side page size (compact display)

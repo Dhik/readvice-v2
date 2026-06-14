@@ -4,8 +4,8 @@ import Swal from 'sweetalert2'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import remarkBreaks from 'remark-breaks'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
+import { Chart } from 'chart.js'
+import { CHART_PALETTE, seriesColor } from '@/lib/charts/theme'
 
 // Compact Tailwind-styled Markdown for assistant answers (tables, headers, lists,
 // rules). `node` is destructured out so it isn't spread onto DOM elements.
@@ -36,9 +36,6 @@ function ChatMarkdown({ content }) {
     </ReactMarkdown>
   )
 }
-
-// Brand palette (same as TYPE_COLORS used elsewhere).
-const CHART_PALETTE = ['#E07B39', '#2C3639', '#3F4E4F', '#8B5E3C']
 
 // Renders a Claude-returned chart spec via Chart.js. Session-only: only messages
 // from the live send response carry `chart`; rehydrated history never does.
@@ -215,24 +212,24 @@ export default function AiInsightsPage() {
       tokensLine: {
         type: 'line',
         data: { labels, datasets: [
-          { label: 'Input tokens',  data: p.daily.map(d => d.inputTokens),  borderColor: '#2C3639', backgroundColor: '#2C3639', tension: 0.3, fill: false, pointRadius: 2 },
-          { label: 'Output tokens', data: p.daily.map(d => d.outputTokens), borderColor: '#E07B39', backgroundColor: '#E07B39', tension: 0.3, fill: false, pointRadius: 2 },
+          { label: 'Input tokens',  data: p.daily.map(d => d.inputTokens),  borderColor: seriesColor(1), backgroundColor: seriesColor(1), tension: 0.3, fill: false, pointRadius: 2 },
+          { label: 'Output tokens', data: p.daily.map(d => d.outputTokens), borderColor: seriesColor(0), backgroundColor: seriesColor(0), tension: 0.3, fill: false, pointRadius: 2 },
         ] },
         options: LINE_OPTS,
       },
       splitDonut: {
         type: 'doughnut',
-        data: { labels: ['Input', 'Output'], datasets: [{ data: [p.inputTokens, p.outputTokens], backgroundColor: ['#2C3639', '#E07B39'], borderColor: '#fff', borderWidth: 2 }] },
+        data: { labels: ['Input', 'Output'], datasets: [{ data: [p.inputTokens, p.outputTokens], backgroundColor: [seriesColor(1), seriesColor(0)], borderColor: '#fff', borderWidth: 2 }] },
         options: DONUT_OPTS,
       },
       costBar: {
         type: 'bar',
-        data: { labels, datasets: [{ label: 'Est. cost (USD)', data: p.daily.map(d => r4(d.costUsd)), backgroundColor: '#8B5E3C', borderRadius: 3 }] },
+        data: { labels, datasets: [{ label: 'Est. cost (USD)', data: p.daily.map(d => r4(d.costUsd)), backgroundColor: seriesColor(3), borderRadius: 3 }] },
         options: BAR_OPTS,
       },
       tenantCostBar: usage.tenant ? {
         type: 'bar',
-        data: { labels: usage.tenant.byUser.map(u => u.userName), datasets: [{ label: 'Est. cost (USD)', data: usage.tenant.byUser.map(u => r4(u.estimatedCostUsd)), backgroundColor: '#E07B39', borderRadius: 3 }] },
+        data: { labels: usage.tenant.byUser.map(u => u.userName), datasets: [{ label: 'Est. cost (USD)', data: usage.tenant.byUser.map(u => r4(u.estimatedCostUsd)), backgroundColor: seriesColor(0), borderRadius: 3 }] },
         options: HBAR_OPTS,
       } : null,
     }

@@ -238,12 +238,37 @@ model Order {
   createdAt        DateTime @default(now()) @map("created_at")
   updatedAt        DateTime @updatedAt @map("updated_at")
 
-  tenant     Tenant      @relation(fields: [tenantId], references: [id])
-  orderItems OrderItem[]
+  tenant       Tenant            @relation(fields: [tenantId], references: [id])
+  orderItems   OrderItem[]
+  fulfillments OrderFulfillment[]
 
   @@unique([orderId, tenantId])
   @@index([tenantId, platform, orderDate])
   @@map("orders")
+}
+
+// ─── Order fulfillment time (FABRICATED — Operational §2.2) ─────────────────
+// DUMMY per-order fulfillment durations. Order has NO per-status-transition
+// timestamps (only orderDate/createdAt/updatedAt), so processing/shipping/total days
+// cannot be computed and are fabricated here, flagged source='DUMMY'. The Operational
+// module's OTHER signals (status funnel, cancellation trend, stock velocity) are REAL —
+// only this timing slice is dummy. A real swap: an OrderStatusHistory table (populated by
+// future syncs) → recompute writes source!='DUMMY' to this same table, zero engine change.
+// See docs/OPERATIONAL_DATA_SOURCES.md.
+model OrderFulfillment {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  orderId        Int      @map("order_id")
+  processingDays Float    @map("processing_days") // DUMMY
+  shippingDays   Float    @map("shipping_days")   // DUMMY
+  totalDays      Float    @map("total_days")      // DUMMY
+  source         String   @default("DUMMY")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, orderId])
+  @@map("order_fulfillment")
 }
 
 model OrderItem {
@@ -601,17 +626,132 @@ model MarketingExpense {
 }
 
 // ─── Visits ─────────────────────────────────────────────
-
+// Per-tenant, per-date, per-platform visit counts. `source` distinguishes DUMMY
+// (dev seed) from real connector rows — a real visit_sync writes source!='DUMMY'
+// to the SAME table with zero schema change. (Evolved from the earlier visitAmount
+// stub: renamed → `visits`, date is now @db.Date, added `source` + unique key.)
 model Visit {
-  id          Int      @id @default(autoincrement())
-  tenantId    Int      @map("tenant_id")
-  platform    String
-  date        DateTime
-  visitAmount Int      @default(0) @map("visit_amount")
-  createdAt   DateTime @default(now()) @map("created_at")
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  date      DateTime @db.Date
+  platform  String
+  visits    Int      @default(0)
+  source    String   @default("DUMMY")
+  createdAt DateTime @default(now()) @map("created_at")
 
-  @@index([tenantId, platform, date])
+  @@unique([tenantId, date, platform])
+  @@index([tenantId, date])
   @@map("visits")
+}
+
+// ─── Ad Spend (generic, dashboard) ──────────────────────
+// Per-tenant, per-date, per-platform ad spend split by `kind` ('social' |
+// 'marketplace'). `source` distinguishes DUMMY from real connector rows (an
+// ad_spend_sync later writes source!='DUMMY' here with zero schema change). NB:
+// distinct from the older per-platform AdSpent* tables (connector targets).
+model AdSpend {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  date      DateTime @db.Date
+  platform  String
+  kind      String                       // 'social' | 'marketplace'
+  amount    Decimal  @db.Decimal(15, 2)
+  source    String   @default("DUMMY")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([tenantId, date])
+  @@map("ad_spend")
+}
+
+// ─── BCG Product Matrix (replica of old app's bcg_product) ──────────────────
+// Per-tenant, per-month (1st-of-month date), per-sku snapshot feeding the BCG
+// Product Matrix page. CRITICAL HONESTY: most inputs (visitor, jumlahAtc,
+// jumlahPembeli, biayaAds, omsetPenjualan, ctr) have NO real source in the new
+// app and are DUMMY — so the matrix's QUADRANT POSITIONS are FICTIONAL in dev.
+// Only sales, qtySold, sku/namaProduk, harga, stock can be real (from
+// OrderItem/Product). `source='DUMMY'` flags every dev row; a future 'bcg_sync'
+// connector writes source!='DUMMY' to the SAME table (zero schema change), and
+// the flag lets clear-dev-bcg + the connector swap cleanly. See
+// docs/BCG_DATA_SOURCES.md for the full real-vs-dummy field map + connector blueprint.
+model BcgProduct {
+  id             Int      @id @default(autoincrement())
+  tenantId       Int      @map("tenant_id")
+  date           DateTime @db.Date                          // 1st-of-month
+  kodeProduk     String   @map("kode_produk")
+  namaProduk     String   @map("nama_produk")
+  sku            String
+  visitor        Int      @default(0)                       // DUMMY (no real source)
+  jumlahAtc      Int      @default(0) @map("jumlah_atc")     // DUMMY
+  jumlahPembeli  Int      @default(0) @map("jumlah_pembeli") // semi-real (distinct orders)
+  qtySold        Int      @default(0) @map("qty_sold")       // REAL (OrderItem)
+  sales          BigInt   @default(0)                        // REAL (OrderItem subtotal)
+  stock          Int      @default(0)                        // REAL (Product.stock)
+  harga          Int      @default(0)                        // REAL (Product.price)
+  biayaAds       Int      @default(0) @map("biaya_ads")      // DUMMY
+  omsetPenjualan Int      @default(0) @map("omset_penjualan")// DUMMY
+  ctr            Float    @default(0)                        // DUMMY
+  strategyNotes  String?  @map("strategy_notes")
+  actionItems    Json?    @map("action_items")
+  source         String   @default("DUMMY")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, date, sku])
+  @@index([tenantId, date])
+  @@map("bcg_product")
+}
+
+// ─── RFM Customer Segmentation ──────────────────────────────────────────────
+// Per-tenant, per-customer, per-as-of-date RFM snapshot. UNLIKE BcgProduct, RFM is
+// mostly REAL: recency/frequency/monetary are derived from real Orders for the
+// ~56% of orders that carry a customer id (source='REAL-DERIVED'). Dummy customers
+// (source='DUMMY') only PAD the segment grid in dev so every segment is visible.
+// Scores (1-5) and `segment` are computed by the recompute job (seed-dev-rfm /
+// a future scheduled job) and STORED — the engine reads them. RFM becomes FULLY
+// real as customer coverage improves; no external data source is needed (it derives
+// from orders we already sync). See docs/RFM_DATA_SOURCES.md.
+model RfmScore {
+  id           Int      @id @default(autoincrement())
+  tenantId     Int      @map("tenant_id")
+  customerKey  String   @map("customer_key")   // customer_username (no phone in schema)
+  customerName String?  @map("customer_name")
+  recencyDays  Int      @map("recency_days")    // days since last order (REAL for REAL-DERIVED)
+  frequency    Int                              // distinct orders (REAL)
+  monetary     Decimal  @db.Decimal(15, 2)      // Σ gmv excl. cancelled (REAL)
+  rScore       Int      @map("r_score")         // 1-5 (computed, stored)
+  fScore       Int      @map("f_score")
+  mScore       Int      @map("m_score")
+  segment      String                           // Champions / Loyal Customers / … (computed)
+  asOfDate     DateTime @db.Date @map("as_of_date")
+  source       String   @default("DUMMY")       // 'REAL-DERIVED' | 'DUMMY'
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, customerKey, asOfDate])
+  @@index([tenantId, asOfDate])
+  @@map("rfm_score")
+}
+
+// ─── Cohort Retention (time-based retention triangle — Wave 2 §2.3) ──────────
+// Per-tenant retention grid: rows = acquisition month (cohortMonth), cols = periodIndex
+// (months since acquisition). MOST dummy-heavy module: real data spans ~1 month, so only
+// the latest cohort's period-0 size is REAL (source='REAL-DERIVED'); retention curves
+// (period 1+) and earlier cohorts are DUMMY decay (source='DUMMY') so the heatmap shape is
+// demonstrable. Becomes real automatically as time elapses + orders accrue — NO connector,
+// just continued sync (the simplest "real with time" case). Distinct from RFM (segment
+// view); this is the TIME-BASED retention view. See docs/COHORT_DATA_SOURCES.md.
+model CohortRetention {
+  id                Int      @id @default(autoincrement())
+  tenantId          Int      @map("tenant_id")
+  cohortMonth       DateTime @db.Date @map("cohort_month")     // acquisition month (1st-of-month)
+  periodIndex       Int      @map("period_index")              // 0,1,2… months since acquisition
+  customersRetained Int      @map("customers_retained")
+  cohortSize        Int      @map("cohort_size")               // denormalized for convenience
+  retentionPct      Float    @map("retention_pct")
+  source            String   @default("DUMMY")                 // 'REAL-DERIVED' | 'DUMMY'
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, cohortMonth, periodIndex])
+  @@index([tenantId, cohortMonth])
+  @@map("cohort_retention")
 }
 
 // ─── Talent ─────────────────────────────────────────────
@@ -658,9 +798,36 @@ model Talent {
   contents       TalentContent[]
   payments       TalentPayment[]
   contentCreator ContentCreator?
+  returns        TalentReturn[]
 
   @@index([tenantId])
   @@map("talents")
+}
+
+// ─── Talent ROI return (FABRICATED attribution layer) ───────────────────────
+// DUMMY attribution of revenue/GMV/views/conversions to a talent. The talent COST
+// side is 100% REAL (Talent.rateFinal, TalentPayment.amountTf, TalentContent.finalRateCard);
+// the RETURN side has NO real data link (Talent.username ∩ Affiliate = 0;
+// TalentContent.campaignId is 100% null; Order has no talent attribution) → fabricated
+// here, flagged source='DUMMY'. ROI = REAL cost ÷ DUMMY return. A real bcg-style swap:
+// backfill the link keys and write source!='DUMMY' to this same table — zero engine
+// change. See docs/TALENT_ROI_DATA_SOURCES.md.
+model TalentReturn {
+  id                Int      @id @default(autoincrement())
+  tenantId          Int      @map("tenant_id")
+  talentId          Int      @map("talent_id")
+  period            DateTime @db.Date
+  attributedRevenue Decimal  @db.Decimal(15, 2) @map("attributed_revenue") // DUMMY
+  attributedGmv     Decimal  @db.Decimal(15, 2) @map("attributed_gmv")     // DUMMY
+  contentViews      Int      @default(0) @map("content_views")             // DUMMY
+  conversions       Int      @default(0)                                   // DUMMY
+  source            String   @default("DUMMY")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  talent Talent @relation(fields: [talentId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId, talentId])
+  @@map("talent_return")
 }
 
 model ContentCreator {

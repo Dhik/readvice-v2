@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import Chart from 'chart.js/auto'
+import { Chart } from 'chart.js'
+import { seriesColor } from '@/lib/charts/theme'
 import { toast } from 'react-hot-toast'
 import ReachModal from './ReachModal'
 import CreateDealingModal from './CreateDealingModal'
@@ -48,7 +49,7 @@ export default function AffiliateReachPage() {
       type: 'bar',
       data: {
         labels: chartData.map(d => d.pic),
-        datasets: [{ label: 'Reach Count', data: chartData.map(d => d.count), backgroundColor: '#E07B39' }],
+        datasets: [{ label: 'Reach Count', data: chartData.map(d => d.count), backgroundColor: seriesColor(0) }],
       },
       options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true } } },
     })

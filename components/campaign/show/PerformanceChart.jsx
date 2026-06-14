@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
+import { Chart } from 'chart.js'
+import { seriesColor, withAlpha } from '@/lib/charts/theme'
 
 function shortNum(val) {
   if (val >= 1e9) return (val / 1e9).toFixed(1) + 'B'
@@ -71,19 +71,19 @@ export default function PerformanceChart({ chartData }) {
             {
               label: 'Views',
               data: chartData.map(d => d.total_view ?? 0),
-              borderColor: '#3498db', backgroundColor: 'rgba(52,152,219,0.1)', fill: true,
+              borderColor: seriesColor(0), backgroundColor: withAlpha(seriesColor(0), 0.1), fill: true,
               tension: 0.3, pointRadius: 2,
             },
             {
               label: 'Likes',
               data: chartData.map(d => d.total_like ?? 0),
-              borderColor: '#e74c3c', backgroundColor: 'rgba(231,76,60,0.1)', fill: true,
+              borderColor: seriesColor(7), backgroundColor: withAlpha(seriesColor(7), 0.1), fill: true,
               tension: 0.3, pointRadius: 2,
             },
             {
               label: 'Comments',
               data: chartData.map(d => d.total_comment ?? 0),
-              borderColor: '#f39c12', backgroundColor: 'rgba(243,156,18,0.1)', fill: true,
+              borderColor: seriesColor(5), backgroundColor: withAlpha(seriesColor(5), 0.1), fill: true,
               tension: 0.3, pointRadius: 2,
             },
           ],
@@ -128,14 +128,14 @@ export default function PerformanceChart({ chartData }) {
             {
               label: 'Data Points',
               data: points,
-              backgroundColor: 'rgba(224,123,57,0.6)',
+              backgroundColor: withAlpha(seriesColor(0), 0.6),
               pointRadius: 4,
             },
             {
               label: 'Trend',
               data: trendLine,
               type: 'line',
-              borderColor: '#2C3639',
+              borderColor: seriesColor(1),
               borderDash: [4, 4],
               pointRadius: 0,
               fill: false,

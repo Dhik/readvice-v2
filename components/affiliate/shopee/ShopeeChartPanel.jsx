@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef } from 'react'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
+import { Chart } from 'chart.js'
+import { CHART_PALETTE, seriesColor, SEMANTIC, withAlpha } from '@/lib/charts/theme'
 
 const fmtNum = n => new Intl.NumberFormat('id-ID').format(n ?? 0)
 const fmtPct = n => (n ?? 0).toFixed(1) + '%'
@@ -14,7 +14,7 @@ function shortNum(v) {
   return String(Math.round(v))
 }
 
-const PIE_COLORS = ['#E07B39', '#2C3639', '#3F4E4F', '#DCD7C9', '#8B5E3C']
+const PIE_COLORS = CHART_PALETTE
 
 export default function ShopeeChartPanel({ dateFrom, dateTo, metrics }) {
   const barRef     = useRef(null)
@@ -31,7 +31,7 @@ export default function ShopeeChartPanel({ dateFrom, dateTo, metrics }) {
         labels: ['Commission', 'GMV'],
         datasets: [{
           data: [0, 0],
-          backgroundColor: ['rgba(44,54,57,0.85)', 'rgba(224,123,57,0.85)'],
+          backgroundColor: [withAlpha(seriesColor(1), 0.85), withAlpha(seriesColor(0), 0.85)],
           borderRadius: 5,
         }],
       },
@@ -96,7 +96,7 @@ export default function ShopeeChartPanel({ dateFrom, dateTo, metrics }) {
   const comm     = metrics?.total_commission ?? 0
   const ratio    = comm > 0 ? gmv / comm : 0
   const barWidth = Math.min(100, (ratio / 4) * 100)
-  const barColor = ratio >= 2 ? '#28a745' : ratio >= 1 ? '#E07B39' : '#dc3545'
+  const barColor = ratio >= 2 ? SEMANTIC.success : ratio >= 1 ? seriesColor(0) : SEMANTIC.danger
 
   return (
     <div className="sv-panel" style={{ flex: 1 }}>

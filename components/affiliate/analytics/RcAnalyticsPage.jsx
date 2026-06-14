@@ -1,11 +1,12 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import Chart from 'chart.js/auto'
+import { Chart } from 'chart.js'
+import { seriesColor } from '@/lib/charts/theme'
 
 const fmtRp  = n => 'Rp ' + new Intl.NumberFormat('id-ID').format(Math.round(n ?? 0))
 const fmtNum = n => new Intl.NumberFormat('id-ID').format(n ?? 0)
 
-const STATUS_COLORS = { 'Existed': '#E07B39', 'New Affiliate': '#2C3639', 'Unknown': '#DCD7C9' }
+const STATUS_COLORS = { 'Existed': seriesColor(0), 'New Affiliate': seriesColor(1), 'Unknown': seriesColor(4) }
 const BADGE_MAP = { 'Existed': 'badge-success', 'New Affiliate': 'badge-info', 'Unknown': 'badge-warning',
                     'Before Dealing': 'badge-danger', 'Same Period': 'badge-warning', 'After Dealing': 'badge-success' }
 
@@ -56,7 +57,7 @@ export default function RcAnalyticsPage() {
       type: 'bar',
       data: {
         labels: top10.map(d => d.username),
-        datasets: [{ label: 'Total GMV', data: top10.map(d => d.total_gmv), backgroundColor: '#E07B39' }],
+        datasets: [{ label: 'Total GMV', data: top10.map(d => d.total_gmv), backgroundColor: seriesColor(0) }],
       },
       options: { responsive: true, indexAxis: 'y', plugins: { legend: { display: false } } },
     })

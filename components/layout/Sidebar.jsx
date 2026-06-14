@@ -10,7 +10,7 @@ import {
   faTachometerAlt, faTimes, faIdCard, faCamera,
   faCreditCard, faChartBar, faCheckCircle,
   faStore, faChevronDown, faChartPie,
-  faCog, faBuilding, faUsers, faRobot, faPlug, faCubes, faChartColumn,
+  faCog, faBuilding, faUsers, faRobot, faPlug, faCubes, faChartColumn, faCoins, faWarehouse, faTableCells, faDiagramProject,
 } from '@fortawesome/free-solid-svg-icons'
 
 // Nav structure: top-level items or collapsible groups
@@ -48,6 +48,15 @@ const NAV = [
     items: [
       { label: 'Product Analysis', href: '/analytics/products', icon: faCubes }, // SP1 — more SP modules append here
       { label: 'Order Analysis',   href: '/analytics/orders',   icon: faChartColumn }, // SP2
+      { label: 'BCG Matrix',       href: '/analytics/bcg',      icon: faChartPie }, // product matrix (dummy axes in dev)
+      { label: 'RFM Segments',     href: '/analytics/rfm',      icon: faUserFriends }, // customer segmentation (real + dummy padding)
+      { label: 'Ads Allocation',   href: '/analytics/ads-allocation', icon: faMoneyBillWave }, // spend allocation (100% real, expense-only)
+      { label: 'Campaign Efficiency', href: '/analytics/campaign-efficiency', icon: faBullhorn }, // cross-campaign content efficiency (reported-GMV)
+      { label: 'Gross Margin',     href: '/analytics/gross-margin', icon: faCoins }, // revenue − HPP (gross only, real)
+      { label: 'Talent ROI',       href: '/analytics/talent-roi', icon: faIdCard }, // real cost ÷ dummy return (Wave 2)
+      { label: 'Operational',      href: '/analytics/operational', icon: faWarehouse }, // funnel/stock real, fulfilment dummy (Wave 2)
+      { label: 'Cohort Retention', href: '/analytics/cohort', icon: faTableCells }, // triangular heatmap, 1/36 real, becomes real w/ time (Wave 2)
+      { label: 'Market Basket',    href: '/analytics/basket', icon: faDiagramProject }, // co-purchase network + affinity matrix, real small-sample (Wave 2)
       { label: 'Report',    href: '/report',   icon: faFileAlt },
       { label: 'Customers', href: '/customer', icon: faUserFriends },
     ],

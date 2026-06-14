@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef } from 'react'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
+import { Chart } from 'chart.js'
+import { seriesColor, withAlpha } from '@/lib/charts/theme'
 
 function shortNum(val) {
   if (val >= 1e9) return (val / 1e9).toFixed(1) + 'B'
@@ -29,7 +29,7 @@ export default function CampaignAnalyticsPanel({ summaryData }) {
         labels: ['Expense', 'GMV'],
         datasets: [{
           data: [0, 0],
-          backgroundColor: ['rgba(44,54,57,0.85)', 'rgba(224,123,57,0.85)'],
+          backgroundColor: [withAlpha(seriesColor(1), 0.85), withAlpha(seriesColor(0), 0.85)],
           borderRadius: 5,
         }],
       },
@@ -49,7 +49,7 @@ export default function CampaignAnalyticsPanel({ summaryData }) {
       type: 'doughnut',
       data: {
         labels: ['Views', 'Likes', 'Comments'],
-        datasets: [{ data: [1, 0, 0], backgroundColor: ['#2C3639', '#E07B39', '#DCD7C9'] }],
+        datasets: [{ data: [1, 0, 0], backgroundColor: [seriesColor(1), seriesColor(0), seriesColor(4)] }],
       },
       options: {
         cutout: '65%',

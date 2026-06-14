@@ -1,8 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { Line, Bar, Doughnut } from 'react-chartjs-2'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
+import { baseOptions, mergeOptions } from '@/lib/charts/theme' // named+used import → triggers central chart registration + defaults
 
 const CHART_TYPES = [
   { key: 'line',     label: 'Trend' },
@@ -10,14 +9,27 @@ const CHART_TYPES = [
   { key: 'doughnut', label: 'Mix' },
 ]
 
-export default function ChartPanel({ lineData, donutData, defaultView = 'line', height = 220 }) {
+// `lineOptions` is merged into BOTH the line and bar views (same dataset);
+// `donutOptions` into the doughnut view. `chartRef` is forwarded to the active
+// chart so callers can drive it (e.g. resetZoom()). Branded style/legend/font come
+// from Chart.defaults (Fase 2a) — callers pass only deltas (tooltips/zoom/labels).
+export default function ChartPanel({
+  lineData, donutData, defaultView = 'line', height = 220,
+  lineOptions, donutOptions, chartRef,
+}) {
   const [active, setActive] = useState(defaultView)
 
   const barData = lineData
     ? { ...lineData, datasets: lineData.datasets.map(ds => ({ ...ds, fill: false, backgroundColor: ds.borderColor })) }
     : null
 
-  const opts = { maintainAspectRatio: false, responsive: true, plugins: { legend: { position: 'top' } } }
+  const baseLine  = { ...baseOptions, plugins: { legend: { position: 'top' } } }
+  const lineOpts  = mergeOptions(baseLine, lineOptions)
+  const donutOpts = mergeOptions(
+    { ...baseOptions, plugins: { legend: { position: 'bottom' } }, cutout: '62%' },
+    donutOptions,
+  )
+
   const visibleTypes = donutData ? CHART_TYPES : CHART_TYPES.filter(t => t.key !== 'doughnut')
 
   return (
@@ -34,14 +46,9 @@ export default function ChartPanel({ lineData, donutData, defaultView = 'line', 
         ))}
       </div>
       <div className="flex-1 px-3 pb-3" style={{ minHeight: height }}>
-        {active === 'line'     && lineData  && <Line     data={lineData}  options={opts} />}
-        {active === 'bar'      && barData   && <Bar      data={barData}   options={opts} />}
-        {active === 'doughnut' && donutData && (
-          <Doughnut
-            data={donutData}
-            options={{ ...opts, plugins: { legend: { position: 'bottom' } }, cutout: '62%' }}
-          />
-        )}
+        {active === 'line'     && lineData  && <Line     ref={chartRef} data={lineData}  options={lineOpts} />}
+        {active === 'bar'      && barData   && <Bar      ref={chartRef} data={barData}   options={lineOpts} />}
+        {active === 'doughnut' && donutData && <Doughnut ref={chartRef} data={donutData} options={donutOpts} />}
         {!lineData && (
           <div className="flex items-center justify-center h-full text-dark1/30 text-sm">No data</div>
         )}

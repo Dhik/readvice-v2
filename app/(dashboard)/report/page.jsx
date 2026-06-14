@@ -1,116 +1,113 @@
 'use client'
 import { useEffect, useState } from 'react'
-import KpiStrip from '@/components/ui/KpiStrip'
+import { Doughnut, Bar } from 'react-chartjs-2'
+import CompactPage from '@/components/dashboard/CompactPage'
+import CompactTopbar from '@/components/dashboard/CompactTopbar'
+import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
+import CompactPanel from '@/components/dashboard/CompactPanel'
+import DataGrid from '@/components/table/DataGrid'
+import { seriesColor, platformColor, withAlpha, SEMANTIC, baseOptions, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, currentMonth } from '@/lib/utils'
-import * as XLSX from 'xlsx'
-import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faFileExcel, faDownload } from '@fortawesome/free-solid-svg-icons'
 
-const PLATFORMS = ['All', 'Shopee', 'TikTok', 'Lazada']
+const shortRp = v => { const n = Number(v) || 0; if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'; if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K'; return String(Math.round(n)) }
+const fmtX = v => v == null ? '—' : `${Number(v).toFixed(2)}×`
+const fmtPct = v => v == null ? '—' : `${Number(v).toFixed(2)}%`
+const Empty = ({ text = 'No data', h = 140 }) => <div style={{ height: h }} className="flex items-center justify-center text-dark1/30 text-xs">{text}</div>
+
+const DAILY_COLUMNS = [
+  { key: 'date',           label: 'Date',      sortable: true, searchable: true, sortType: 'date' },
+  { key: 'turnover',       label: 'Sales',     sortable: true, sortType: 'number', align: 'right', format: v => formatCurrency(v) },
+  { key: 'order',          label: 'Orders',    sortable: true, sortType: 'number', align: 'right', format: v => formatNumber(v) },
+  { key: 'qty',            label: 'Qty',       sortable: true, sortType: 'number', align: 'right', format: v => formatNumber(v) },
+  { key: 'ad_spent_total', label: 'Ad Spent',  sortable: true, sortType: 'number', align: 'right', format: v => formatCurrency(v) },
+  { key: 'roas',           label: 'ROAS',      sortable: true, sortType: 'number', align: 'right', format: v => fmtX(v) },
+  { key: 'closing_rate',   label: 'Closing %', sortable: true, sortType: 'number', align: 'right', format: v => `${v}%` },
+]
 
 export default function ReportPage() {
-  const [month, setMonth]       = useState(currentMonth())
-  const [platform, setPlatform] = useState('')
-  const [summary, setSummary]   = useState(null)
-  const [rows, setRows]         = useState([])
-  const [loading, setLoading]   = useState(true)
+  const [month, setMonth]     = useState(currentMonth())
+  const [data, setData]       = useState(null)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     setLoading(true)
-    const params = new URLSearchParams()
-    if (month)    params.set('month', month)
-    if (platform) params.set('platform', platform.toLowerCase())
-    Promise.all([
-      fetch(`/api/sales/summary?${params}`).then(r => r.json()),
-      fetch(`/api/sales?${params}&limit=100`).then(r => r.json()),
-    ]).then(([sum, data]) => {
-      setSummary(sum)
-      setRows(data.data ?? [])
-      setLoading(false)
-    }).catch(() => setLoading(false))
-  }, [month, platform])
+    fetch(`/api/report/summary?month=${month}`)
+      .then(r => r.json())
+      .then(d => { setData(d?.error ? null : d); setLoading(false) })
+      .catch(() => { setData(null); setLoading(false) })
+  }, [month])
 
-  function exportExcel() {
-    const ws = XLSX.utils.json_to_sheet(rows.map(r => ({
-      Date:     r.orderDate,
-      Platform: r.platform,
-      'Order ID': r.orderId,
-      GMV:      r.gmv,
-      Nett:     r.nett,
-      Qty:      r.qty,
-      Status:   r.status,
-    })))
-    const wb = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(wb, ws, 'Sales Report')
-    XLSX.writeFile(wb, `sales-report-${month}.xlsx`)
-  }
+  const k = data?.kpis?.current ?? {}
+  const dlt = data?.kpis?.deltas ?? {}
+  const daily = data?.daily ?? []
+  const statuses = data?.statuses ?? []
+  const platforms = data?.platforms ?? []
 
-  const kpiTiles = [
-    { label: 'Total GMV',    value: loading ? '—' : formatCurrency(summary?.total_gmv   ?? 0) },
-    { label: 'Total Nett',   value: loading ? '—' : formatCurrency(summary?.total_nett  ?? 0) },
-    { label: 'Total Orders', value: loading ? '—' : formatNumber(summary?.total_orders  ?? 0) },
-    { label: 'Total Qty',    value: loading ? '—' : formatNumber(summary?.total_qty     ?? 0) },
+  const tiles = [
+    { icon: 'fa-dollar-sign', bg: '#E07B39', label: 'Total Sales', value: formatCurrency(k.sales ?? 0), delta: dlt.sales?.pct },
+    { icon: 'fa-receipt',     bg: '#2C3639', label: 'Orders',      value: formatNumber(k.orders ?? 0),  delta: dlt.orders?.pct },
+    { icon: 'fa-boxes-stacked', bg: '#C9A66B', iconColor: '#2C3639', label: 'Qty', value: formatNumber(k.qty ?? 0), delta: dlt.qty?.pct },
+    { icon: 'fa-eye',         bg: '#3F4E4F', label: 'Visit',       value: formatNumber(k.visits ?? 0),  delta: dlt.visits?.pct, dev: true },
+    { icon: 'fa-credit-card', bg: '#8B5E3C', label: 'Total Spent', value: formatCurrency(k.totalSpent ?? 0), delta: dlt.totalSpent?.pct, dev: true },
+    { icon: 'fa-bullseye',    bg: '#6B8E9E', label: 'ROAS',        value: fmtX(k.roas),                 delta: dlt.roas?.pct, dev: true },
+    { icon: 'fa-percent',     bg: '#A9C5A0', iconColor: '#2C3639', label: 'Closing Rate', value: fmtPct(k.closingRate), delta: dlt.closingRate?.pct, dev: true },
+    { icon: 'fa-coins',       bg: '#B5645B', label: 'CPA',         value: formatCurrency(k.cpa ?? 0),   delta: dlt.cpa?.pct, dev: true },
   ]
 
+  // Static report charts (no zoom/drill)
+  const totalPlat = platforms.reduce((a, p) => a + p.gmv, 0) || 1
+  const platDonut = platforms.length ? { labels: platforms.map(p => p.platform), datasets: [{ data: platforms.map(p => p.gmv), backgroundColor: platforms.map(p => platformColor(p._key)) }] } : null
+  const platOpts = mergeOptions(baseOptions, { cutout: '58%', plugins: { legend: { position: 'bottom', labels: { boxWidth: 9, font: { size: 9 } } }, tooltip: { callbacks: { label: c => ` ${formatCurrency(c.parsed)} (${Math.round((c.parsed / totalPlat) * 1000) / 10}%)` } } } })
+
+  const statusBar = statuses.length ? {
+    labels: statuses.map(s => s.status),
+    datasets: [{ label: 'Orders', data: statuses.map(s => s.orders), backgroundColor: statuses.map(s => s.excluded ? withAlpha(SEMANTIC.danger, 0.65) : seriesColor(0)) }],
+  } : null
+  const statusOpts = mergeOptions(baseOptions, { indexAxis: 'y', plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => { const s = statuses[c.dataIndex]; return s ? [`${formatNumber(s.orders)} orders (${s.ordersPct}%)`, `GMV: ${formatCurrency(s.gmv)}`] : '' } } } }, scales: { x: { ticks: { font: { size: 9 } } }, y: { ticks: { font: { size: 8 } } } } })
+
+  const revBar = daily.length ? {
+    labels: daily.map(d => d.date.slice(8)),
+    datasets: [{ label: 'Sales', data: daily.map(d => d.turnover), backgroundColor: seriesColor(0) }],
+  } : null
+  const revOpts = mergeOptions(baseOptions, { plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => `Day ${i[0]?.label}`, label: c => formatCurrency(c.parsed.y) } } }, scales: { x: { ticks: { font: { size: 9 }, maxTicksLimit: 12 } }, y: { ticks: { callback: v => shortRp(v), font: { size: 9 } } } } })
+
   return (
-    <div className="sv-page">
-      <div className="sv-filter-bar">
-        <div className="flex gap-1 tab-pills">
-          {PLATFORMS.map(p => (
-            <button key={p} onClick={() => setPlatform(p === 'All' ? '' : p)}
-              className={`tab-pill ${(p === 'All' ? '' : p) === platform ? 'active' : ''}`}>{p}</button>
-          ))}
-        </div>
-        <div className="flex items-center gap-2 ml-auto">
-          <span className="text-xs text-dark1/60">Month:</span>
-          <input type="month" value={month} onChange={e => setMonth(e.target.value)}
-            className="form-input !w-auto text-xs py-1" />
-          <button onClick={exportExcel} className="btn btn-primary btn-sm">
-            <FontAwesomeIcon icon={faFileExcel} /> Export Excel
-          </button>
-        </div>
+    <CompactPage>
+      <CompactTopbar title="Report" icon="fa-file-lines"
+        actions={
+          <a href={`/api/report/export?month=${month}`} className="sv-tbtn sv-tbtn-success" title="Download .xlsx">
+            <i className="fas fa-file-excel" /> Export Excel
+          </a>
+        }>
+        <span className="text-xs text-dark1/60">Month</span>
+        <input type="month" value={month} onChange={e => setMonth(e.target.value)}
+          className="border border-cream rounded text-xs px-2 py-1 h-7 bg-white text-dark1 focus:outline-none focus:border-dark2" />
+      </CompactTopbar>
+
+      <IconKpiStrip tiles={tiles} />
+
+      {/* Static summary charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mt-2">
+        <CompactPanel title="Platform Split" icon="fa-store">
+          {platDonut ? <div style={{ height: 150 }}><Doughnut data={platDonut} options={platOpts} /></div> : <Empty text="No platform data" h={150} />}
+        </CompactPanel>
+        <CompactPanel title="Status Breakdown" icon="fa-list-check">
+          {statusBar ? <div style={{ height: 150 }}><Bar data={statusBar} options={statusOpts} /></div> : <Empty text="No orders" h={150} />}
+        </CompactPanel>
+        <CompactPanel title="Monthly Revenue" icon="fa-chart-column">
+          {revBar ? <div style={{ height: 150 }}><Bar data={revBar} options={revOpts} /></div> : <Empty text="No revenue" h={150} />}
+        </CompactPanel>
       </div>
 
-      <KpiStrip tiles={kpiTiles} cols={4} />
-
-      <div className="sv-main">
-        <div className="flex flex-col bg-white rounded-lg shadow-sm overflow-hidden flex-1">
-          <div className="sv-panel-header">
-            Marketing Report — {month}
-            <button onClick={exportExcel} className="btn btn-outline btn-sm">
-              <FontAwesomeIcon icon={faDownload} /> Download
-            </button>
-          </div>
-          <div className="sv-panel-body">
-            {loading ? (
-              <div className="flex items-center justify-center h-32 text-dark1/40">Loading...</div>
-            ) : (
-              <table className="sv-table w-full">
-                <thead>
-                  <tr>
-                    {['Date','Platform','Order ID','GMV','Nett','Qty','Status'].map(h => (
-                      <th key={h} className="bg-dark1 text-white text-xs font-semibold px-3 py-2 text-left whitespace-nowrap border-b-2 border-orange">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.slice(0, 50).map((row, i) => (
-                    <tr key={i} className="hover:bg-bg/60">
-                      <td className="px-3 py-1.5 border-b border-cream/40 text-xs">{new Date(row.orderDate).toLocaleDateString('id-ID')}</td>
-                      <td className="px-3 py-1.5 border-b border-cream/40 text-xs">{row.platform}</td>
-                      <td className="px-3 py-1.5 border-b border-cream/40 text-xs font-mono text-[10px]">{row.orderId ?? '—'}</td>
-                      <td className="px-3 py-1.5 border-b border-cream/40 text-xs">{formatCurrency(Number(row.gmv??0))}</td>
-                      <td className="px-3 py-1.5 border-b border-cream/40 text-xs">{formatCurrency(Number(row.nett??0))}</td>
-                      <td className="px-3 py-1.5 border-b border-cream/40 text-xs">{formatNumber(row.qty??0)}</td>
-                      <td className="px-3 py-1.5 border-b border-cream/40 text-xs">{row.status ?? '—'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
+      {/* Exportable flat table — sales by date */}
+      <div className="mt-2">
+        <CompactPanel title="Sales by Date" icon="fa-table"
+          headerRight={<span className="text-[9px] text-dark1/40">Ad Spent / ROAS / Closing = dummy dev data</span>}>
+          <DataGrid data={daily} columns={DAILY_COLUMNS} searchable
+            defaultSort={{ key: 'date', dir: 'asc' }} pageSize={31} loading={loading}
+            emptyText="No sales in this period." />
+        </CompactPanel>
       </div>
-    </div>
+    </CompactPage>
   )
 }

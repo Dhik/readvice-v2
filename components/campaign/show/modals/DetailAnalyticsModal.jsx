@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
-import { Chart, registerables } from 'chart.js'
-Chart.register(...registerables)
+import { Chart } from 'chart.js'
+import { seriesColor, withAlpha } from '@/lib/charts/theme'
 
 export default function DetailAnalyticsModal({ isOpen, onClose, contentId }) {
   const [data, setData] = useState(null)
@@ -33,9 +33,9 @@ export default function DetailAnalyticsModal({ isOpen, onClose, contentId }) {
       data: {
         labels,
         datasets: [
-          { label: 'Views',    data: data.engagement.map(d => d.view),    borderColor: '#3498db', tension: 0.3, pointRadius: 2 },
-          { label: 'Likes',    data: data.engagement.map(d => d.like),    borderColor: '#e74c3c', tension: 0.3, pointRadius: 2 },
-          { label: 'Comments', data: data.engagement.map(d => d.comment), borderColor: '#f39c12', tension: 0.3, pointRadius: 2 },
+          { label: 'Views',    data: data.engagement.map(d => d.view),    borderColor: seriesColor(0), tension: 0.3, pointRadius: 2 },
+          { label: 'Likes',    data: data.engagement.map(d => d.like),    borderColor: seriesColor(7), tension: 0.3, pointRadius: 2 },
+          { label: 'Comments', data: data.engagement.map(d => d.comment), borderColor: seriesColor(5), tension: 0.3, pointRadius: 2 },
         ],
       },
       options: {
@@ -50,7 +50,7 @@ export default function DetailAnalyticsModal({ isOpen, onClose, contentId }) {
       data: {
         labels: data.gmv.map(d => d.date),
         datasets: [
-          { label: 'GMV', data: data.gmv.map(d => d.gmv), borderColor: '#E07B39', backgroundColor: 'rgba(224,123,57,0.1)', fill: true, tension: 0.3, pointRadius: 2 },
+          { label: 'GMV', data: data.gmv.map(d => d.gmv), borderColor: seriesColor(0), backgroundColor: withAlpha(seriesColor(0), 0.1), fill: true, tension: 0.3, pointRadius: 2 },
         ],
       },
       options: {

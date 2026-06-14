@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useRef } from 'react'
-import { Chart, registerables } from 'chart.js'
+import { Chart } from 'chart.js'
+import { platformColor, seriesColor, SEMANTIC, withAlpha } from '@/lib/charts/theme'
 import { formatCurrency } from '@/lib/utils'
-Chart.register(...registerables)
 
 function shortNum(val) {
   if (!val) return '0'
@@ -12,8 +12,8 @@ function shortNum(val) {
   return String(val)
 }
 
-const PLATFORM_COLORS = ['#1877F2', '#EE4D2D', '#010101', '#0F146D']
 const PLATFORM_LABELS = ['Meta', 'Shopee', 'TikTok', 'Lazada']
+const PLATFORM_COLORS = PLATFORM_LABELS.map(platformColor) // unified marketplace colors
 
 export default function AdsAnalyticsPanel({ kpiData, donutSpends }) {
   const barRef     = useRef(null)
@@ -31,7 +31,7 @@ export default function AdsAnalyticsPanel({ kpiData, donutSpends }) {
         labels: ['Spent', 'Revenue'],
         datasets: [{
           data: [0, 0],
-          backgroundColor: ['rgba(44,54,57,0.85)', 'rgba(224,123,57,0.85)'],
+          backgroundColor: [withAlpha(seriesColor(1), 0.85), withAlpha(seriesColor(0), 0.85)],
           borderRadius: 5,
         }],
       },
@@ -96,7 +96,7 @@ export default function AdsAnalyticsPanel({ kpiData, donutSpends }) {
 
   const ratio    = spent > 0 ? revenue / spent : 0
   const barWidth = Math.min(100, (ratio / 4) * 100)
-  const barColor = ratio >= 2 ? '#28a745' : ratio >= 1 ? '#E07B39' : '#dc3545'
+  const barColor = ratio >= 2 ? SEMANTIC.success : ratio >= 1 ? seriesColor(0) : SEMANTIC.danger
 
   return (
     <div className="flex flex-col h-full overflow-y-auto">

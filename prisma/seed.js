@@ -847,10 +847,10 @@ async function seedVisits(tenants) {
   for (const tenant of tenants) {
     for (const platform of platforms) {
       const batch = days.map(day => ({
-        tenantId:    tenant.id,
+        tenantId: tenant.id,
         platform,
-        date:        day,
-        visitAmount: randInt(1_000, 50_000),
+        date:     day,
+        visits:   randInt(1_000, 50_000), // field renamed from visitAmount; source defaults to DUMMY
       }))
       await prisma.visit.createMany({ data: batch, skipDuplicates: true })
       total += batch.length

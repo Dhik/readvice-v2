@@ -1,17 +1,41 @@
 'use client'
-import { useEffect, useState } from 'react'
-import { Bar, Doughnut } from 'react-chartjs-2'
-import { Chart, registerables } from 'chart.js'
+import { useEffect, useState, useRef } from 'react'
+import { Bar, Doughnut, Chart } from 'react-chartjs-2'
 import KpiStrip from '@/components/ui/KpiStrip'
 import ChartPanel from '@/components/charts/ChartPanel'
 import DateRangePicker from '@/components/ui/DateRangePicker'
+import DataGrid from '@/components/table/DataGrid'
+import { seriesColor, platformColor, SEMANTIC, withAlpha, zoomReady, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber } from '@/lib/utils'
-Chart.register(...registerables)
+
+// Status-breakdown table columns (ALL statuses — the funnel). `excluded` rows are
+// flagged; sort/search/filter handled by DataGrid.
+const STATUS_COLUMNS = [
+  { key: 'status', label: 'Status', sortable: true, searchable: true, sortType: 'string', filter: 'select',
+    render: s => (
+      <>
+        {s.status}
+        {s.excluded && <span className="ml-1.5 text-[9px] uppercase px-1 py-0.5 rounded bg-red-500/10 text-red-600"
+          title="Excluded from real-sales metrics">excl.</span>}
+      </>
+    ) },
+  { key: 'orders',    label: 'Orders', sortable: true, sortType: 'number', align: 'right', format: v => formatNumber(v) },
+  { key: 'ordersPct', label: '%',      sortable: true, sortType: 'number', align: 'right', format: v => `${v}%` },
+  { key: 'gmv',       label: 'GMV',    sortable: true, sortType: 'number', align: 'right', format: v => formatCurrency(v) },
+]
 
 const GRANS = [{ k: 'day', l: 'Day' }, { k: 'week', l: 'Week' }, { k: 'month', l: 'Month' }]
 const METRICS = [{ k: 'revenue', l: 'Revenue' }, { k: 'orders', l: 'Orders' }, { k: 'qty', l: 'Units' }, { k: 'aov', l: 'AOV' }]
-const PALETTE = ['#E07B39', '#2C3639', '#3F4E4F', '#8B5E3C', '#A9C5A0', '#C9A66B', '#6B8E9E', '#B5645B']
 const OPTS = { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } } }
+
+// Compact IDR for the combo's right (AOV) axis ticks.
+const shortRp = (v) => {
+  const n = Number(v) || 0
+  if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'
+  if (n >= 1e6) return (n / 1e6).toFixed(1) + 'M'
+  if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K'
+  return String(n)
+}
 
 // "Real sales" (excludes cancelled/unpaid) vs "all orders" (the status funnel).
 const Basis = ({ kind }) => (
@@ -40,6 +64,13 @@ export default function OrderAnalysisPage() {
   const [metric, setMetric]           = useState('revenue')
   const [data, setData]               = useState(null)
   const [loading, setLoading]         = useState(true)
+  const [zoomOn, setZoomOn]           = useState(false) // true once the dynamic zoom plugin is registered
+  const trendRef = useRef(null)                          // chart instance, for resetZoom()
+
+  // zoom plugin loads client-only & async (see theme.js). Flip zoomOn when ready;
+  // the trend ChartPanel is keyed on zoomOn so it REMOUNTS with zoom registered
+  // (chart.js attaches plugins at construction).
+  useEffect(() => { zoomReady.then(setZoomOn) }, [])
 
   const rangeActive = Boolean(startDate && endDate)
 
@@ -73,33 +104,112 @@ export default function OrderAnalysisPage() {
   const periods = ts.map(t => t.period)
   const trendData = !ts.length ? null
     : metric === 'revenue' ? { labels: periods, datasets: [
-        { label: 'GMV',  data: ts.map(t => t.gmv),  borderColor: '#E07B39', backgroundColor: 'rgba(224,123,57,0.1)', fill: true, tension: 0.3 },
-        { label: 'Nett', data: ts.map(t => t.nett), borderColor: '#3F4E4F', backgroundColor: 'rgba(63,78,79,0.08)', fill: false, tension: 0.3 } ] }
+        { label: 'GMV',  data: ts.map(t => t.gmv),  borderColor: seriesColor(0), backgroundColor: withAlpha(seriesColor(0), 0.1), fill: true, tension: 0.3 },
+        { label: 'Nett', data: ts.map(t => t.nett), borderColor: seriesColor(2), backgroundColor: withAlpha(seriesColor(2), 0.08), fill: false, tension: 0.3 } ] }
     : metric === 'orders' ? { labels: periods, datasets: [
-        { label: 'Orders', data: ts.map(t => t.orders), borderColor: '#E07B39', backgroundColor: 'rgba(224,123,57,0.1)', fill: true, tension: 0.3 } ] }
+        { label: 'Orders', data: ts.map(t => t.orders), borderColor: seriesColor(0), backgroundColor: withAlpha(seriesColor(0), 0.1), fill: true, tension: 0.3 } ] }
     : metric === 'qty' ? { labels: periods, datasets: [
-        { label: 'Units', data: ts.map(t => t.qty), borderColor: '#8B5E3C', backgroundColor: 'rgba(139,94,60,0.1)', fill: true, tension: 0.3 } ] }
+        { label: 'Units', data: ts.map(t => t.qty), borderColor: seriesColor(3), backgroundColor: withAlpha(seriesColor(3), 0.1), fill: true, tension: 0.3 } ] }
     : { labels: aov.map(a => a.period), datasets: [
-        { label: 'AOV', data: aov.map(a => a.aov), borderColor: '#2C3639', backgroundColor: 'rgba(44,54,57,0.1)', fill: true, tension: 0.3 } ] }
+        // AOV is a ratio/average — render as a LINE (no fill): area under an average
+        // implies accumulated volume, which misleads. Volume metrics above use area.
+        { label: 'AOV', data: aov.map(a => a.aov), borderColor: seriesColor(1), backgroundColor: withAlpha(seriesColor(1), 0.1), fill: false, tension: 0.3 } ] }
+
+  // Trend tooltip shows ALL 5 metrics for the hovered period at once (gmv, nett,
+  // orders, qty, aov) regardless of the active line — pulled from ts + aov by index.
+  // filter to dataset 0 so the 5-line block prints once (even in the 2-line revenue
+  // view). Zoom (x-axis only) is added once the dynamic plugin is ready.
+  const trendOptions = {
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      tooltip: {
+        displayColors: false,
+        filter: item => item.datasetIndex === 0,
+        callbacks: {
+          title: items => items[0]?.label ?? '',
+          label: ctx => {
+            const t = ts[ctx.dataIndex], a = aov[ctx.dataIndex]
+            if (!t) return ''
+            return [
+              `GMV: ${formatCurrency(t.gmv)}`,
+              `Nett: ${formatCurrency(t.nett)}`,
+              `Orders: ${formatNumber(t.orders)}`,
+              `Qty: ${formatNumber(t.qty)}`,
+              `AOV: ${formatCurrency(a?.aov ?? 0)}`,
+            ]
+          },
+        },
+      },
+      ...(zoomOn ? {
+        zoom: {
+          zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+          pan:  { enabled: true, mode: 'x' },
+          limits: { x: { min: 'original', max: 'original' } }, // constrain to data range
+        },
+      } : {}),
+    },
+  }
+
+  // ── Combo: Orders (bars) vs AOV (line), dual-axis (Fase 2c) ──
+  // Volume vs basket-value over time on one chart — "more but smaller baskets?".
+  // Left axis = Orders (count); right axis = AOV (IDR). Grid drawn on the LEFT axis
+  // only so the second axis can't visually mislead. Uses ts + aov (already fetched).
+  const comboData = ts.length ? {
+    labels: periods,
+    datasets: [
+      { type: 'bar',  label: 'Orders', data: ts.map(t => t.orders), yAxisID: 'y',  order: 2,
+        backgroundColor: withAlpha(seriesColor(0), 0.55), borderColor: seriesColor(0) },
+      { type: 'line', label: 'AOV',    data: aov.map(a => a.aov),   yAxisID: 'y1', order: 1,
+        borderColor: seriesColor(1), backgroundColor: seriesColor(1), tension: 0.3, pointRadius: 2, fill: false },
+    ],
+  } : null
+  const comboOptions = mergeOptions(OPTS, {
+    interaction: { mode: 'index', intersect: false },
+    scales: {
+      y:  { type: 'linear', position: 'left',  title: { display: true, text: 'Orders' },
+            grid: { drawOnChartArea: true } },
+      y1: { type: 'linear', position: 'right', title: { display: true, text: 'AOV (IDR)' },
+            grid: { drawOnChartArea: false }, ticks: { callback: v => shortRp(v) } },
+    },
+    plugins: {
+      tooltip: { callbacks: { label: ctx => ctx.dataset.label === 'AOV'
+        ? `AOV: ${formatCurrency(ctx.parsed.y)}`
+        : `Orders: ${formatNumber(ctx.parsed.y)}` } },
+    },
+  })
 
   // ── Status breakdown bar (all orders; excluded statuses muted) ──
   const status = data?.statusBreakdown ?? []
   const statusBar = status.length ? {
     labels: status.map(s => s.status),
     datasets: [{ label: 'Orders', data: status.map(s => s.orders),
-      backgroundColor: status.map(s => s.excluded ? 'rgba(181,100,91,0.55)' : '#E07B39') }],
+      backgroundColor: status.map(s => s.excluded ? withAlpha(SEMANTIC.danger, 0.55) : seriesColor(0)) }],
   } : null
 
   // ── Order-size distribution ──
   const ud = data?.sizeDistribution?.units ?? []
   const vd = data?.sizeDistribution?.value ?? []
-  const unitsBar = ud.length ? { labels: ud.map(b => b.label), datasets: [{ label: 'Orders', data: ud.map(b => b.orders), backgroundColor: '#E07B39' }] } : null
-  const valueBar = vd.length ? { labels: vd.map(b => b.label), datasets: [{ label: 'Orders', data: vd.map(b => b.orders), backgroundColor: '#3F4E4F' }] } : null
+  const unitsBar = ud.length ? { labels: ud.map(b => b.label), datasets: [{ label: 'Orders', data: ud.map(b => b.orders), backgroundColor: seriesColor(0) }] } : null
+  const valueBar = vd.length ? { labels: vd.map(b => b.label), datasets: [{ label: 'Orders', data: vd.map(b => b.orders), backgroundColor: seriesColor(2) }] } : null
+  // Size-dist bar options: tooltip (count + % of orders) + datalabels (count on bar).
+  const sizeOpts = (arr) => mergeOptions(OPTS, {
+    plugins: {
+      legend: { display: false },
+      tooltip: { callbacks: { label: ctx => {
+        const b = arr[ctx.dataIndex]; if (!b) return ''
+        const total = arr.reduce((a, x) => a + x.orders, 0)
+        const pct = total > 0 ? Math.round((b.orders / total) * 1000) / 10 : 0
+        return [`${formatNumber(b.orders)} orders`, `${pct}% of orders`]
+      } } },
+      datalabels: { display: true, anchor: 'end', align: 'end', offset: 2,
+        color: '#2C3639', font: { size: 9 }, formatter: v => formatNumber(v) },
+    },
+  })
 
   // ── Day of week ──
   const dow = data?.dayOfWeek ?? []
   const dowHasData = dow.some(d => d.orders > 0)
-  const dowBar = dowHasData ? { labels: dow.map(d => d.day), datasets: [{ label: 'Revenue', data: dow.map(d => d.gmv), backgroundColor: '#E07B39' }] } : null
+  const dowBar = dowHasData ? { labels: dow.map(d => d.day), datasets: [{ label: 'Revenue', data: dow.map(d => d.gmv), backgroundColor: seriesColor(0) }] } : null
 
   // ── Platform over time (stacked) ──
   const pot = data?.platformOverTime ?? []
@@ -107,20 +217,23 @@ export default function OrderAnalysisPage() {
   const potPlatforms = [...new Set(pot.map(r => r.platform))]
   const potData = pot.length ? {
     labels: potPeriods,
-    datasets: potPlatforms.map((pf, i) => ({
+    datasets: potPlatforms.map((pf) => ({
       label: pf,
       data: potPeriods.map(p => { const row = pot.find(r => r.period === p && r.platform === pf); return row ? row.gmv : 0 }),
-      backgroundColor: PALETTE[i % PALETTE.length],
+      backgroundColor: platformColor(pf), // unified marketplace colors
     })),
   } : null
-  const stackedOpts = { ...OPTS, scales: { x: { stacked: true }, y: { stacked: true } } }
+  const stackedOpts = mergeOptions(OPTS, {
+    scales: { x: { stacked: true }, y: { stacked: true } },
+    plugins: { tooltip: { callbacks: { label: ctx => `${ctx.dataset.label}: ${formatCurrency(ctx.parsed.y)}` } } },
+  })
 
   // ── Customer split ──
   const cs = data?.customerSplit
   const csTotal = (cs?.ordersFromNew ?? 0) + (cs?.ordersFromReturning ?? 0)
   const csData = csTotal > 0 ? {
     labels: ['New (single-order)', 'Returning (repeat)'],
-    datasets: [{ data: [cs.ordersFromNew, cs.ordersFromReturning], backgroundColor: ['#A9C5A0', '#E07B39'] }],
+    datasets: [{ data: [cs.ordersFromNew, cs.ordersFromReturning], backgroundColor: [seriesColor(5), seriesColor(0)] }],
   } : null
 
   if (loading && !data) {
@@ -159,6 +272,10 @@ export default function OrderAnalysisPage() {
       <div className="sv-chart-panel mt-4">
         <div className="sv-panel-header flex items-center gap-2 flex-wrap">
           <span>Trend</span><Basis kind="real" />
+          {zoomOn && trendData && (
+            <button onClick={() => trendRef.current?.resetZoom?.()}
+              className="text-[11px] text-orange hover:underline" title="Reset zoom/pan">Reset zoom</button>
+          )}
           <div className="flex gap-1 tab-pills ml-auto">
             {METRICS.map(m => (
               <button key={m.k} onClick={() => setMetric(m.k)}
@@ -167,7 +284,24 @@ export default function OrderAnalysisPage() {
           </div>
         </div>
         <div className="sv-panel-body">
-          {trendData ? <ChartPanel lineData={trendData} defaultView="line" height={260} /> : <Empty />}
+          {trendData
+            ? <ChartPanel key={zoomOn ? 'zoom' : 'nozoom'} lineData={trendData} defaultView="line"
+                height={260} lineOptions={trendOptions} chartRef={trendRef} />
+            : <Empty />}
+        </div>
+        {zoomOn && trendData && (
+          <div className="px-3 pb-2 text-[10px] text-dark1/40">Scroll/pinch to zoom · drag to pan (x-axis)</div>
+        )}
+      </div>
+
+      {/* ── Orders vs Avg Order Value (combo, dual-axis) ── */}
+      <div className="sv-chart-panel mt-4">
+        <div className="sv-panel-header flex items-center gap-2">
+          <span>Orders vs Avg Order Value</span><Basis kind="real" />
+          <span className="ml-auto text-[10px] text-dark1/40">bars = orders (left) · line = AOV (right)</span>
+        </div>
+        <div className="sv-panel-body">
+          {comboData ? <div style={{ height: 240 }}><Chart type="bar" data={comboData} options={comboOptions} /></div> : <Empty />}
         </div>
       </div>
 
@@ -176,26 +310,28 @@ export default function OrderAnalysisPage() {
         <Card title="Order Status Breakdown" basis="all">
           {statusBar ? (
             <>
-              <div style={{ height: 200 }}><Bar data={statusBar} options={{ ...OPTS, indexAxis: 'y', plugins: { legend: { display: false } } }} /></div>
-              <div className="overflow-x-auto mt-2">
-                <table className="sv-table-clean w-full text-xs">
-                  <thead><tr className="text-left text-dark1/50 border-b border-dark1/10">
-                    <th className="py-1 pr-2">Status</th><th className="py-1 pr-2 text-right">Orders</th>
-                    <th className="py-1 pr-2 text-right">%</th><th className="py-1 pr-2 text-right">GMV</th>
-                  </tr></thead>
-                  <tbody>
-                    {status.map(s => (
-                      <tr key={s.status} className="border-b border-dark1/5">
-                        <td className="py-1 pr-2">{s.status}
-                          {s.excluded && <span className="ml-1.5 text-[9px] uppercase px-1 py-0.5 rounded bg-red-500/10 text-red-600" title="Excluded from real-sales metrics">excl.</span>}
-                        </td>
-                        <td className="py-1 pr-2 text-right">{formatNumber(s.orders)}</td>
-                        <td className="py-1 pr-2 text-right">{s.ordersPct}%</td>
-                        <td className="py-1 pr-2 text-right">{formatCurrency(s.gmv)}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div style={{ height: 200 }}><Bar data={statusBar} options={mergeOptions(OPTS, {
+                indexAxis: 'y',
+                plugins: {
+                  legend: { display: false },
+                  tooltip: { callbacks: { label: ctx => {
+                    const s = status[ctx.dataIndex]
+                    return s ? [`Orders: ${formatNumber(s.orders)}`, `${s.ordersPct}% of orders`,
+                      `GMV: ${formatCurrency(s.gmv)}`, ...(s.excluded ? ['⊘ excluded from real sales'] : [])] : ''
+                  } } },
+                  datalabels: { display: true, anchor: 'end', align: 'end', offset: 2,
+                    color: '#2C3639', font: { size: 9 }, formatter: v => formatNumber(v) },
+                },
+              })} /></div>
+              <div className="mt-2">
+                <DataGrid
+                  data={status}
+                  columns={STATUS_COLUMNS}
+                  searchable
+                  defaultSort={{ key: 'orders', dir: 'desc' }}
+                  pageSize={0}
+                  emptyText="No orders in this period."
+                />
               </div>
             </>
           ) : <Empty />}
@@ -206,11 +342,11 @@ export default function OrderAnalysisPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <div className="text-[11px] text-dark1/50 mb-1">Units per order</div>
-                <div style={{ height: 180 }}>{unitsBar ? <Bar data={unitsBar} options={{ ...OPTS, plugins: { legend: { display: false } } }} /> : <Empty />}</div>
+                <div style={{ height: 180 }}>{unitsBar ? <Bar data={unitsBar} options={sizeOpts(ud)} /> : <Empty />}</div>
               </div>
               <div>
                 <div className="text-[11px] text-dark1/50 mb-1">Value per order <span className="text-dark1/30">(IDR)</span></div>
-                <div style={{ height: 180 }}>{valueBar ? <Bar data={valueBar} options={{ ...OPTS, plugins: { legend: { display: false } } }} /> : <Empty />}</div>
+                <div style={{ height: 180 }}>{valueBar ? <Bar data={valueBar} options={sizeOpts(vd)} /> : <Empty />}</div>
               </div>
             </div>
           ) : <Empty />}
@@ -224,7 +360,15 @@ export default function OrderAnalysisPage() {
           <div className="mb-2 text-[11px] text-orange/90 bg-orange/5 border border-orange/15 rounded px-2 py-1">
             ⚠ Grouped by UTC day; weekdays may shift ~1 day vs local time (WIB).
           </div>
-          {dowBar ? <div style={{ height: 200 }}><Bar data={dowBar} options={{ ...OPTS, plugins: { legend: { display: false } } }} /></div> : <Empty />}
+          {dowBar ? <div style={{ height: 200 }}><Bar data={dowBar} options={mergeOptions(OPTS, {
+            plugins: {
+              legend: { display: false },
+              tooltip: { callbacks: { label: ctx => {
+                const d = dow[ctx.dataIndex]
+                return d ? [`Revenue: ${formatCurrency(d.gmv)}`, `Orders: ${formatNumber(d.orders)}`, `Qty: ${formatNumber(d.qty)}`] : ''
+              } } },
+            },
+          })} /></div> : <Empty />}
         </Card>
 
         <Card title="Platform Revenue Over Time" basis="real">
@@ -237,7 +381,17 @@ export default function OrderAnalysisPage() {
         <Card title="New vs Returning Customers" basis="real">
           {csData ? (
             <>
-              <div style={{ height: 180 }}><Doughnut data={csData} options={{ ...OPTS, plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } }, cutout: '60%' }} /></div>
+              <div style={{ height: 180 }}><Doughnut data={csData} options={mergeOptions(OPTS, {
+                cutout: '60%',
+                plugins: {
+                  legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                  tooltip: { callbacks: { label: ctx => {
+                    const total = (cs.ordersFromNew + cs.ordersFromReturning) || 1
+                    const pct = Math.round((ctx.parsed / total) * 1000) / 10
+                    return ` ${formatNumber(ctx.parsed)} orders (${pct}%)`
+                  } } },
+                },
+              })} /></div>
               {/* Visible coverage caption — the partial nature must be obvious */}
               <div className="mt-2 text-[11px] text-dark1/55 bg-dark1/5 rounded px-2 py-1.5 leading-relaxed">
                 Based on <b>{formatNumber(cs.coverage.ordersWithCustomer)}</b> orders with customer data
