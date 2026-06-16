@@ -11,7 +11,12 @@ import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
 import { MarginWaterfall, MarginParetoChart, MarginTrendChart } from '@/components/gross-margin/MarginCharts'
 import DetailModal from '@/components/gross-margin/DetailModal'
+import CalculatedFieldModal from '@/components/analytics/CalculatedFieldModal'
+import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
+import { useCalcFields, safeEvaluate, fmtCalc } from '@/components/analytics/calcFieldHelpers'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+
+const MODULE = 'gross-margin'
 
 const shortRp = v => { const n = Number(v) || 0; if (n >= 1e9) return 'Rp' + (n / 1e9).toFixed(2) + 'B'; if (n >= 1e6) return 'Rp' + (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return 'Rp' + (n / 1e3).toFixed(0) + 'K'; return 'Rp' + Math.round(n) }
 const fetchJson = (url) => fetch(url).then(r => r.json()).then(d => (d?.error ? null : d)).catch(() => null)
@@ -31,6 +36,8 @@ export default function GrossMarginPage() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState(null)
+  const [showCalc, setShowCalc] = useState(false)
+  const { fields: calcFields, manifest, reload: reloadCalc, removeField } = useCalcFields(MODULE)
 
   useEffect(() => {
     let alive = true
@@ -51,6 +58,25 @@ export default function GrossMarginPage() {
   const pareto = data?.pareto
   const products = data?.byProduct?.items ?? []
   const trend = data?.trend
+
+  // ── Calc fields (Part B4) — map page data to manifest keys, resolve via the evaluator ──
+  // Overview scope: aggregate values keyed by the gross-margin manifest params.
+  const overviewValues = useMemo(() => ({
+    revenue: ov?.totalRevenue ?? 0, hpp: ov?.totalHpp ?? 0, grossProfit: ov?.grossProfit ?? 0,
+    marginPct: ov?.grossMarginPct ?? 0, qty: ov?.qty ?? 0,
+    coveragePct: ov?.coveragePct ?? 0, coveredMarginPct: ov?.coveredMarginPct ?? 0,
+  }), [ov])
+  // Per-row items already carry manifest keys (revenue/hpp/grossProfit/marginPct/qty).
+  const extraTiles = useMemo(() => calcFields.map(f => {
+    const { value, dummy } = safeEvaluate(f.formula, overviewValues, manifest)
+    return { label: f.label, value: fmtCalc(value), dummy, onRemove: () => removeField(f.id) }
+  }), [calcFields, overviewValues, manifest, removeField])
+  const extraColumns = useMemo(() => calcFields.map(f => ({
+    key: String(f.id), label: f.label, format: fmtCalc,
+    dummy: safeEvaluate(f.formula, {}, manifest).dummy,
+    resolve: row => safeEvaluate(f.formula, row, manifest).value,
+    onRemove: () => removeField(f.id),
+  })), [calcFields, manifest, removeField])
 
   // month options derived from trend dates (data is thin — usually one month)
   const monthOpts = useMemo(() => [...new Set((trend?.points ?? []).map(p => p.date.slice(0, 7)))], [trend])
@@ -95,7 +121,10 @@ export default function GrossMarginPage() {
   return (
     <CompactPage>
       <CompactTopbar title="Gross Margin" icon="fa-coins"
-        actions={<button onClick={() => download(`gross-margin-${month || 'all'}.csv`, toCsv(products), 'text/csv')} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-file-csv" /> CSV</button>}>
+        actions={<>
+          <button onClick={() => setShowCalc(true)} className="sv-tbtn sv-tbtn-dark"><i className="fas fa-calculator" /> + Field</button>
+          <button onClick={() => download(`gross-margin-${month || 'all'}.csv`, toCsv(products), 'text/csv')} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-file-csv" /> CSV</button>
+        </>}>
         <span className="text-xs text-dark1/60 ml-1">Period</span>
         <select value={month} onChange={e => setMonth(e.target.value)}
           className="border border-cream rounded text-xs px-2 py-1 h-7 bg-white text-dark1 focus:outline-none focus:border-dark2">
@@ -114,7 +143,7 @@ export default function GrossMarginPage() {
         </span>
       </div>
 
-      <IconKpiStrip tiles={tiles} />
+      <IconKpiStrip tiles={tiles} extraFields={extraTiles} />
 
       {/* Waterfall + Pareto */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -152,11 +181,15 @@ export default function GrossMarginPage() {
         headerRight={ov ? <span className="text-[9px] text-dark1/45">{ov.uncoveredSkuCount} uncovered (0 HPP → inflated)</span> : null} bodyClass="p-2">
         <DataGrid data={products} columns={columns} searchable onRowClick={r => openDetail(r.sku)}
           defaultSort={{ key: 'grossProfit', dir: 'desc' }} pageSize={25} loading={loading}
-          emptyText="No products with sales." />
+          emptyText="No products with sales." extraFields={extraColumns} />
         <p className="text-[10px] text-dark1/40 mt-1"><span className="text-orange">Uncovered</span> SKUs have no hargaCogs → HPP=0 → 100% margin (overstated). GROSS only — not net. Click a row for detail.</p>
       </CompactPanel>
 
       {detail && <DetailModal detail={detail} onClose={() => setDetail(null)} />}
+      <CalculatedFieldModal isOpen={showCalc} onClose={() => setShowCalc(false)} module={MODULE}
+        manifest={manifest} sampleValues={overviewValues} sampleLabel="overview totals" onSaved={reloadCalc} />
+      <AnalyticsAIPanel module="gross-margin" context={data}
+        suggestions={['Which SKUs drive most of the gross profit?', 'Is the blended margin trustworthy given HPP coverage?']} />
     </CompactPage>
   )
 }

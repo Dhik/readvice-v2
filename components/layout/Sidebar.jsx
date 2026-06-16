@@ -10,22 +10,56 @@ import {
   faTachometerAlt, faTimes, faIdCard, faCamera,
   faCreditCard, faChartBar, faCheckCircle,
   faStore, faChevronDown, faChartPie,
-  faCog, faBuilding, faUsers, faRobot, faPlug, faCubes, faChartColumn, faCoins, faWarehouse, faTableCells, faDiagramProject,
+  faCog, faBuilding, faUsers, faRobot, faPlug, faCubes, faChartColumn, faCoins, faWarehouse, faTableCells, faDiagramProject, faArrowTrendUp, faBullseye,
 } from '@fortawesome/free-solid-svg-icons'
 
-// Nav structure: top-level items or collapsible groups
+// Nav structure (Part A — IA regroup by theme): four render modes —
+//  • { section }           non-clickable top-level divider/label for a theme group
+//  • { label, href, icon } direct link
+//  • { group, items }      collapsible group; items may contain { subheader } labels
+//  • { subheader }         non-clickable sub-header inside a group's items
+// Routes / icons / permission gates are preserved from the original flat nav —
+// this is a reorder/regroup only.
 const NAV = [
+  // 1 ── Home / Operational ─────────────────────────────────────────────
+  { section: 'Home / Operational' },
   { label: 'Dashboard', href: '/dashboard', icon: faTachometerAlt },
   { label: 'Sales',     href: '/sales',     icon: faChartLine },
   { label: 'Orders',    href: '/orders',    icon: faShoppingCart },
-  { label: 'Campaigns', href: '/campaigns', icon: faBullhorn },
+  { label: 'Customers', href: '/customer',  icon: faUserFriends },
+  { label: 'Report',    href: '/report',    icon: faFileAlt },
+
+  // 2 ── Analytics (themed sub-groups, not flat) ────────────────────────
   {
-    group: 'Ads', icon: faMoneyBillWave,
+    group: 'Analytics', icon: faChartBar,
     items: [
-      { label: 'Ad Spend',    href: '/ads/marketplace',  icon: faMoneyBillWave },
-      { label: 'AI Insights', href: '/ads/ai-insights',  icon: faRobot },
+      { subheader: 'Customer' },
+      { label: 'RFM Segments',     href: '/analytics/rfm',      icon: faUserFriends }, // customer segmentation (real + dummy padding)
+      { label: 'Cohort Retention', href: '/analytics/cohort',   icon: faTableCells }, // triangular heatmap, 1/36 real, becomes real w/ time
+      { label: 'Market Basket',    href: '/analytics/basket',   icon: faDiagramProject }, // co-purchase affinity, real small-sample
+      { label: 'CLV',              href: '/analytics/clv',      icon: faCoins }, // Wave 3.1 — historic value real, projection dummy-flagged
+
+      { subheader: 'Marketing' },
+      { label: 'Ads Allocation',      href: '/analytics/ads-allocation',      icon: faMoneyBillWave }, // spend allocation (100% real, expense-only)
+      { label: 'Campaign Efficiency', href: '/analytics/campaign-efficiency', icon: faBullhorn }, // cross-campaign content efficiency (reported-GMV)
+      { label: 'Talent ROI',          href: '/analytics/talent-roi',          icon: faIdCard }, // real cost ÷ dummy return (Wave 2)
+      { label: 'True ROAS',           href: '/analytics/roas',                icon: faBullseye }, // Wave 3.2 — real spend ÷ dummy attribution
+
+      { subheader: 'Product & Finance' },
+      { label: 'BCG Matrix',       href: '/analytics/bcg',      icon: faChartPie }, // product matrix (dummy axes in dev)
+      { label: 'Gross Margin',     href: '/analytics/gross-margin', icon: faCoins }, // revenue − HPP (gross only, real)
+      { label: 'Product Analysis', href: '/analytics/products', icon: faCubes }, // SP1
+      { label: 'Order Analysis',   href: '/analytics/orders',   icon: faChartColumn }, // SP2
+      { label: 'AI Forecast',      href: '/analytics/forecast', icon: faArrowTrendUp }, // Wave 3.4 — readiness gate (no forecast until ≥12mo)
+
+      { subheader: 'Operations' },
+      { label: 'Operational',      href: '/analytics/operational', icon: faWarehouse }, // funnel/stock real, fulfilment dummy (Wave 2)
     ],
   },
+
+  // 3 ── Marketing Modules (legacy data-entry / CRUD surfaces) ──────────
+  { section: 'Marketing Modules' },
+  { label: 'Campaigns', href: '/campaigns', icon: faBullhorn },
   {
     group: 'Talent', icon: faIdCard,
     items: [
@@ -44,24 +78,18 @@ const NAV = [
     ],
   },
   {
-    group: 'Analytics', icon: faChartBar,
+    group: 'Ads', icon: faMoneyBillWave,
     items: [
-      { label: 'Product Analysis', href: '/analytics/products', icon: faCubes }, // SP1 — more SP modules append here
-      { label: 'Order Analysis',   href: '/analytics/orders',   icon: faChartColumn }, // SP2
-      { label: 'BCG Matrix',       href: '/analytics/bcg',      icon: faChartPie }, // product matrix (dummy axes in dev)
-      { label: 'RFM Segments',     href: '/analytics/rfm',      icon: faUserFriends }, // customer segmentation (real + dummy padding)
-      { label: 'Ads Allocation',   href: '/analytics/ads-allocation', icon: faMoneyBillWave }, // spend allocation (100% real, expense-only)
-      { label: 'Campaign Efficiency', href: '/analytics/campaign-efficiency', icon: faBullhorn }, // cross-campaign content efficiency (reported-GMV)
-      { label: 'Gross Margin',     href: '/analytics/gross-margin', icon: faCoins }, // revenue − HPP (gross only, real)
-      { label: 'Talent ROI',       href: '/analytics/talent-roi', icon: faIdCard }, // real cost ÷ dummy return (Wave 2)
-      { label: 'Operational',      href: '/analytics/operational', icon: faWarehouse }, // funnel/stock real, fulfilment dummy (Wave 2)
-      { label: 'Cohort Retention', href: '/analytics/cohort', icon: faTableCells }, // triangular heatmap, 1/36 real, becomes real w/ time (Wave 2)
-      { label: 'Market Basket',    href: '/analytics/basket', icon: faDiagramProject }, // co-purchase network + affinity matrix, real small-sample (Wave 2)
-      { label: 'Report',    href: '/report',   icon: faFileAlt },
-      { label: 'Customers', href: '/customer', icon: faUserFriends },
+      { label: 'Ad Spend',    href: '/ads/marketplace',  icon: faMoneyBillWave },
+      { label: 'AI Insights', href: '/ads/ai-insights',  icon: faRobot },
     ],
   },
+
+  // 4 ── Market Research (standalone) ───────────────────────────────────
   { label: 'Market Research', href: '/market-research', icon: faChartPie },
+
+  // 5 ── Settings / Account ─────────────────────────────────────────────
+  { section: 'Settings / Account' },
   {
     group: 'Settings', icon: faCog,
     items: [
@@ -136,6 +164,17 @@ export default function Sidebar({ collapsed, mobileOpen, onClose }) {
       <nav className="flex-1 py-2 overflow-y-auto overflow-x-hidden">
         {NAV.map((item, i) => {
 
+          /* ── Top-level section header (non-clickable theme divider) ── */
+          if (item.section) {
+            if (collapsed) return <div key={`sec-${i}`} className="my-2 mx-3 border-t border-white/5" />
+            return (
+              <div key={`sec-${i}`} className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider select-none"
+                   style={{ color: 'rgba(220,215,201,0.32)' }}>
+                {item.section}
+              </div>
+            )
+          }
+
           /* ── Direct link (no group) ── */
           if (!item.group) {
             const active = itemIsActive(item.href, pathname)
@@ -191,7 +230,17 @@ export default function Sidebar({ collapsed, mobileOpen, onClose }) {
                   marginLeft: !collapsed ? '1.25rem' : '0',
                 }}
               >
-                {subItems.map(sub => {
+                {subItems.map((sub, si) => {
+                  /* ── Themed sub-header (non-clickable) ── */
+                  if (sub.subheader) {
+                    if (collapsed) return null
+                    return (
+                      <div key={`sub-${si}`} className="px-2 pt-2 pb-0.5 text-[9px] font-semibold uppercase tracking-wider select-none"
+                           style={{ color: 'rgba(220,215,201,0.3)' }}>
+                        {sub.subheader}
+                      </div>
+                    )
+                  }
                   const active = itemIsActive(sub.href, pathname)
                   return (
                     <Link key={sub.href} href={sub.href} onClick={onClose}

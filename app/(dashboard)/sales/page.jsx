@@ -8,6 +8,7 @@ import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import ImportModal from '@/components/ui/ImportModal'
 import SyncButton from '@/components/ui/SyncButton'
+import CrossLink from '@/components/dashboard/CrossLink'
 import { seriesColor, platformColor, withAlpha, SEMANTIC, baseOptions, mergeOptions, zoomReady } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, currentMonth } from '@/lib/utils'
 
@@ -150,6 +151,7 @@ export default function SalesPage() {
     <CompactPage>
       <CompactTopbar title="Sales" icon="fa-chart-line"
         actions={<>
+          <CrossLink href="/analytics/gross-margin" label="View full analysis" />
           <button onClick={() => setShowImport(true)} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-upload" /> Import</button>
           <SyncButton endpoint="/api/import/gs/orders/cleora-shopee" label="Sync" />
           <button onClick={exportExcel} disabled={!daily.length} className="sv-tbtn sv-tbtn-success disabled:opacity-40"><i className="fas fa-file-excel" /> Export</button>

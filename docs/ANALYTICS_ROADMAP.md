@@ -399,6 +399,13 @@ gate — NOT a fabricated forecast line; the LLM is for narrative, never numeric
 **Recommend starting Wave 3 in a fresh session** given the shift in character (speculative,
 config-driven, structure-only).
 
+> **📐 ALSO SEE [`docs/PLATFORM_DESIGN.md`](PLATFORM_DESIGN.md)** — the next-phase plan beyond
+> deep-analysis: **A** nav/IA cleanup · **B** calculated-fields foundation · **C** Talent-ROI
+> objective-aware (TOFU/MOFU/BOFU) redesign · **D** AI agent on analytics pages · **E** connector
+> expansion (Drive/OneDrive). Each part has a numbered, copy-pasteable phase plan. **Sequenced
+> against this roadmap:** it recommends doing A1–A3 + B1–B2 + C **before** Wave 3 (higher-confidence,
+> higher near-term value; Wave 3's AI Forecasting benefits from B+D existing first).
+
 ---
 
 # The FIVE honesty-framing patterns (established across Wave 1 + 2)

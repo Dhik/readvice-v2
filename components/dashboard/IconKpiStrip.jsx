@@ -15,17 +15,29 @@ function Delta({ pct }) {
   )
 }
 
-export default function IconKpiStrip({ tiles = [] }) {
+// extraFields (Part B4 — calc fields): rendered as extra tiles AFTER the fixed ones.
+// Shape: [{ label, value, dummy, icon?, bg?, onRemove? }]. `dummy` drives the existing
+// `dev` badge automatically; `onRemove` adds a small × (calc fields are user-defined).
+export default function IconKpiStrip({ tiles = [], extraFields = [] }) {
+  const allTiles = [
+    ...tiles,
+    ...extraFields.map(f => ({ icon: f.icon ?? 'fa-calculator', bg: f.bg ?? '#3F4E4F', ...f, dev: f.dummy, calc: true })),
+  ]
   return (
     <div className="sv-kpi-strip">
-      {tiles.map((t, i) => (
-        <div key={i} className="kpi-tile">
+      {allTiles.map((t, i) => (
+        <div key={i} className="kpi-tile relative">
+          {t.calc && t.onRemove && (
+            <button onClick={t.onRemove} title="Remove calculated field"
+              className="absolute top-0.5 right-0.5 text-dark1/30 hover:text-red-500 text-[11px] leading-none w-4 h-4 flex items-center justify-center">&times;</button>
+          )}
           <div className="kpi-tile-icon" style={{ background: t.bg ?? '#2C3639', color: t.iconColor ?? 'white' }}>
             <i className={`fas ${t.icon ?? 'fa-chart-simple'}`} />
           </div>
           <div className="min-w-0 flex flex-col">
             <div className="kpi-tile-label">
               {t.label}
+              {t.calc && <span className="ml-1 text-[8px] uppercase tracking-wide px-1 rounded bg-dark2/10 text-dark2 align-middle" title="User-defined calculated field">ƒx</span>}
               {t.dev && (
                 <span className="ml-1 text-[8px] uppercase tracking-wide px-1 rounded bg-orange/15 text-orange align-middle"
                   title="Sourced from DUMMY dev data — replace with a real connector">dev</span>

@@ -7,6 +7,7 @@ import CampaignTable from './CampaignTable'
 import CampaignAnalyticsPanel from './CampaignAnalyticsPanel'
 import KolExportModal from './KolExportModal'
 import AddCampaignModal from './AddCampaignModal'
+import CrossLink from '@/components/dashboard/CrossLink'
 import toast from 'react-hot-toast'
 
 const TYPE_CHIP_COLORS = { creative: '#3F4E4F', kol: '#E07B39', clipper: '#2C3639', affiliate: '#8B5E3C' }
@@ -109,6 +110,8 @@ export default function CampaignIndexPage({ type }) {
             {bulkLoading ? 'Refreshing...' : 'Bulk Refresh'}
           </button>
         )}
+
+        <CrossLink href="/analytics/campaign-efficiency" label="Analyze" icon="fa-chart-line" />
 
         <div className="ml-auto flex items-center gap-1.5 flex-wrap">
           {/* Unified-mode: type dropdown filter */}

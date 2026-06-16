@@ -687,6 +687,11 @@ Each ran against the live DB (tenant 2 = Cleora) via the modules' exact SQL:
   Sequences every module MOST REAL → MOST DUMMY (3 waves) with per-module specs, the
   data-plumbing track, and the do-NOT-rebuild list. **Read with BI_DESIGN.md before
   building any deep-analysis module.**
+- **`docs/PLATFORM_DESIGN.md` — 📐 the next-phase plan beyond deep-analysis.** Covers nav/IA
+  cleanup (A), calculated-fields foundation (B), Talent-ROI objective-aware/TOFU-MOFU-BOFU
+  redesign (C), AI-agent on analytics pages (D), connector expansion to Drive/OneDrive (E),
+  + open product questions (F). Each part has a numbered, copy-pasteable phase plan;
+  **sequenced against Wave 3** (recommends A1–A3 + B1–B2 + C before Wave 3).
 - `docs/BCG_DATA_SOURCES.md`, `docs/RFM_DATA_SOURCES.md` — per-module real-vs-dummy
   honesty maps + connector/recompute blueprints (the template every new module follows).
 - `docs/SALES_GSHEET_CONFIG.md` — old-app Google Sheets config (spreadsheet IDs,

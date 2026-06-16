@@ -29,7 +29,9 @@ function ref80Plugin() {
 }
 
 // ── Pareto: bars (spend, top-80 highlighted) + cumulative-% line ──────────────
-export function ParetoChart({ items = [], height = 300, onSelect }) {
+// extraSeries (Part B5 — calc fields as a CHART SERIES): [{ label, data:number[], dummy }]
+// rendered as extra line datasets on the spend (y) axis. Additive — default [].
+export function ParetoChart({ items = [], height = 300, onSelect, extraSeries = [] }) {
   const labels = items.map(i => i.key)
   const data = {
     labels,
@@ -42,6 +44,11 @@ export function ParetoChart({ items = [], height = 300, onSelect }) {
         data: items.map(i => i.cumulativePct),
         borderColor: SEMANTIC.warning, backgroundColor: withAlpha(SEMANTIC.warning, 0.1),
         pointRadius: 3, pointBackgroundColor: SEMANTIC.warning, tension: 0.2, fill: false },
+      ...extraSeries.map((s, i) => ({
+        type: 'line', label: s.label + ' (ƒx)', yAxisID: 'y', order: 0,
+        data: s.data, borderColor: keyColor(i + 5), backgroundColor: withAlpha(keyColor(i + 5), 0.1),
+        borderDash: [5, 3], pointRadius: 2, tension: 0.2, fill: false,
+      })),
     ],
   }
   const options = mergeOptions(baseOptions, {

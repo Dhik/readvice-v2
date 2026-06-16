@@ -7,6 +7,7 @@ import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataTable from '@/components/table/DataTable'
 import ImportModal from '@/components/ui/ImportModal'
+import CrossLink from '@/components/dashboard/CrossLink'
 import { seriesColor, withAlpha, SEMANTIC, baseOptions, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, formatDate, currentMonth } from '@/lib/utils'
 
@@ -89,7 +90,10 @@ export default function OrdersPage() {
   return (
     <CompactPage>
       <CompactTopbar title="Orders" icon="fa-cart-shopping"
-        actions={<button onClick={() => setShowImport(true)} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-upload" /> Import</button>}>
+        actions={<>
+          <CrossLink href="/analytics/operational" label="View full analysis" />
+          <button onClick={() => setShowImport(true)} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-upload" /> Import</button>
+        </>}>
         <select value={platform} onChange={e => { setPlatform(e.target.value); setPage(1) }}
           className="border border-cream rounded text-xs px-2 py-1 h-7 bg-white text-dark1 focus:outline-none focus:border-dark2">
           {PLATFORMS.map(p => <option key={p} value={p === 'All' ? '' : p.toLowerCase()}>{p}</option>)}

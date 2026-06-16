@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import KpiStrip from '@/components/ui/KpiStrip'
 import DataTable from '@/components/table/DataTable'
 import AdsAnalyticsPanel from '@/components/ads/AdsAnalyticsPanel'
+import CrossLink from '@/components/dashboard/CrossLink'
 import ImportModal from '@/components/ui/ImportModal'
 import DateRangePicker from '@/components/ui/DateRangePicker'
 import { formatCurrency, formatNumber, formatDate } from '@/lib/utils'
@@ -171,6 +172,7 @@ export default function AdMarketplacePage() {
               className={`tab-pill ${showRoas ? 'active' : ''}`}>ROAS</button>
           </div>
           <div className="flex items-center gap-2 ml-auto flex-wrap">
+            <CrossLink href="/analytics/ads-allocation" label="Analyze" icon="fa-chart-line" />
             <DateRangePicker label="Date" startDate={startDate} endDate={endDate}
               onStartChange={v => { setStartDate(v); setPage(1) }}
               onEndChange={v => { setEndDate(v); setPage(1) }} />

@@ -5,6 +5,7 @@
 // All logic in the engine via /api/analytics/cohort.
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import CompactPage from '@/components/dashboard/CompactPage'
+import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
 import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
@@ -152,6 +153,8 @@ export default function CohortPage() {
           </div>
         )}
       </CompactPanel>
+      <AnalyticsAIPanel module="cohort" context={data}
+        suggestions={['What is the retention so far?', 'How much of this is real vs projected?']} />
     </CompactPage>
   )
 }

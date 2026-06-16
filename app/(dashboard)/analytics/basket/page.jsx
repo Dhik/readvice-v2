@@ -11,6 +11,7 @@ import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
 import BasketNetwork from '@/components/basket/BasketNetwork'
 import AffinityMatrix from '@/components/basket/AffinityMatrix'
+import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
 import { formatNumber, formatCurrency } from '@/lib/utils'
 
 const fetchJson = (url) => fetch(url).then(r => r.json()).then(d => (d?.error ? null : d)).catch(() => null)
@@ -165,6 +166,8 @@ export default function BasketPage() {
           emptyText="No co-purchase pairs." />
         <p className="text-[10px] text-dark1/40 mt-1">Ranked by lift. <span className="text-orange">n=1</span> pairs (single co-occurrence) are directional only. Lift = real, support/confidence = real — small sample. Click a row to highlight that SKU in the network above.</p>
       </CompactPanel>
+      <AnalyticsAIPanel module="basket" context={data}
+        suggestions={['Why is the top lift so high?', 'Which pairs are reliable vs noise?']} />
     </CompactPage>
   )
 }

@@ -11,9 +11,18 @@ import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import { MetricRow, StatCard } from '@/components/dashboard/StatCard'
 import DataGrid from '@/components/table/DataGrid'
+import CrossLink from '@/components/dashboard/CrossLink'
 import { EfficiencyQuadrantChart, GroupBars, quadColor } from '@/components/campaign-efficiency/EfficiencyCharts'
 import DetailModal, { QuadBadge } from '@/components/campaign-efficiency/DetailModal'
+import CalculatedFieldModal from '@/components/analytics/CalculatedFieldModal'
+import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
+import { useCalcFields, safeEvaluate, fmtCalc } from '@/components/analytics/calcFieldHelpers'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+
+const MODULE = 'campaign-efficiency'
+// Map a content point → manifest keys (quadrant points use x=cost, y=reportedGmv).
+const rowToParams = r => ({ cost: r.x, reportedGmv: r.y, views: r.views, cpm: r.cpm,
+  engagementRate: r.engagementRate, costPerGmv: r.costPerGmv, gmvPerCost: r.gmvPerCost, likes: 0, comments: 0 })
 
 const shortRp = v => { const n = Number(v) || 0; if (n >= 1e9) return 'Rp' + (n / 1e9).toFixed(2) + 'B'; if (n >= 1e6) return 'Rp' + (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return 'Rp' + (n / 1e3).toFixed(0) + 'K'; return 'Rp' + Math.round(n) }
 const fetchJson = (url) => fetch(url).then(r => r.json()).then(d => (d?.error ? null : d)).catch(() => null)
@@ -32,6 +41,8 @@ export default function CampaignEfficiencyPage() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState(null)
+  const [showCalc, setShowCalc] = useState(false)
+  const { fields: calcFields, manifest, reload: reloadCalc, removeField } = useCalcFields(MODULE)
 
   useEffect(() => {
     let alive = true
@@ -62,6 +73,23 @@ export default function CampaignEfficiencyPage() {
   const bestChannel = channelGroups.filter(g => g.gmvPerCost != null).reduce((m, g) => (g.gmvPerCost > (m?.gmvPerCost ?? -1) ? g : m), null)
   const bestTier = tierMeasurable.reduce((m, g) => (g.gmvPerCost > (m?.gmvPerCost ?? -1) ? g : m), null)
 
+  // ── Calc fields (Part B5) — overview tile + per-content table column ──
+  const overviewValues = useMemo(() => ({
+    cost: ov?.totalCost ?? 0, reportedGmv: ov?.totalReportedGmv ?? 0, views: ov?.totalViews ?? 0,
+    cpm: ov?.avgCpm ?? 0, engagementRate: ov?.avgEngagementRate ?? 0,
+    gmvPerCost: ov?.blendedGmvPerCost ?? 0, costPerGmv: ov?.blendedCostPerReportedGmv ?? 0, likes: 0, comments: 0,
+  }), [ov])
+  const extraTiles = useMemo(() => calcFields.map(f => {
+    const { value, dummy } = safeEvaluate(f.formula, overviewValues, manifest)
+    return { label: f.label, value: fmtCalc(value), dummy, onRemove: () => removeField(f.id) }
+  }), [calcFields, overviewValues, manifest, removeField])
+  const extraColumns = useMemo(() => calcFields.map(f => ({
+    key: String(f.id), label: f.label, format: fmtCalc,
+    dummy: safeEvaluate(f.formula, {}, manifest).dummy,
+    resolve: row => safeEvaluate(f.formula, rowToParams(row), manifest).value,
+    onRemove: () => removeField(f.id),
+  })), [calcFields, manifest, removeField])
+
   const tiles = [
     { icon: 'fa-photo-film', bg: '#2C3639', label: 'Content (measured/total)', value: `${formatNumber(ov?.measuredCount ?? 0)}/${formatNumber(ov?.contentCount ?? 0)}` },
     { icon: 'fa-coins', bg: '#E07B39', label: 'Total Cost', value: shortRp(ov?.totalCost) },
@@ -86,7 +114,11 @@ export default function CampaignEfficiencyPage() {
   return (
     <CompactPage>
       <CompactTopbar title="Campaign Efficiency" icon="fa-photo-film"
-        actions={<button onClick={() => download('campaign-efficiency.csv', toCsv(points), 'text/csv')} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-file-csv" /> CSV</button>}>
+        actions={<>
+          <button onClick={() => setShowCalc(true)} className="sv-tbtn sv-tbtn-dark"><i className="fas fa-calculator" /> + Field</button>
+          <button onClick={() => download('campaign-efficiency.csv', toCsv(points), 'text/csv')} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-file-csv" /> CSV</button>
+          <CrossLink href="/campaigns" label="Manage data" icon="fa-pen-to-square" />
+        </>}>
         <span className="text-[10px] text-dark1/45">Cross-campaign · all content</span>
       </CompactTopbar>
 
@@ -100,7 +132,7 @@ export default function CampaignEfficiencyPage() {
         </span>
       </div>
 
-      <IconKpiStrip tiles={tiles} />
+      <IconKpiStrip tiles={tiles} extraFields={extraTiles} />
 
       {/* Quadrant — the fit-for-efficiency matrix */}
       <CompactPanel title="Cost × Reported-GMV — content efficiency" icon="fa-braille"
@@ -193,11 +225,15 @@ export default function CampaignEfficiencyPage() {
       <CompactPanel title={`Content — ${points.length} measured`} icon="fa-table" bodyClass="p-2">
         <DataGrid data={points} columns={columns} searchable onRowClick={r => openDetail(r.id)}
           defaultSort={{ key: 'gmvPerCost', dir: 'desc' }} pageSize={25} loading={loading}
-          emptyText="No content with cost/GMV data." />
+          emptyText="No content with cost/GMV data." extraFields={extraColumns} />
         <p className="text-[10px] text-dark1/40 mt-1">{formatNumber(ov?.measuredCount ?? 0)} of {formatNumber(ov?.contentCount ?? 0)} pieces have cost/GMV data (rest are placeholders). GMV = self-reported, not attributed. Click a row for detail.</p>
       </CompactPanel>
 
       {detail && <DetailModal detail={detail} color={quadColor(detail.quadrant)} onClose={() => setDetail(null)} />}
+      <CalculatedFieldModal isOpen={showCalc} onClose={() => setShowCalc(false)} module={MODULE}
+        manifest={manifest} sampleValues={overviewValues} sampleLabel="overview averages" onSaved={reloadCalc} />
+      <AnalyticsAIPanel module="campaign-efficiency" context={data}
+        suggestions={['Which creators are most efficient?', 'Is this GMV real sales?']} />
     </CompactPage>
   )
 }

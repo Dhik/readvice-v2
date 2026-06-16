@@ -5,6 +5,7 @@
 // 4 distinct chart forms. All logic in the engine via /api/analytics/operational.
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import CompactPage from '@/components/dashboard/CompactPage'
+import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
 import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
@@ -167,6 +168,8 @@ export default function OperationalPage() {
       </CompactPanel>
 
       {detail && <StockDetailModal detail={detail} onClose={() => setDetail(null)} />}
+      <AnalyticsAIPanel module="operational" context={data}
+        suggestions={['What is the cancellation trend?', 'Is the fulfilment time real?']} />
     </CompactPage>
   )
 }

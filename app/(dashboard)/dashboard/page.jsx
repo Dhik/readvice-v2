@@ -5,6 +5,7 @@ import CompactPage from '@/components/dashboard/CompactPage'
 import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
+import CrossLink from '@/components/dashboard/CrossLink'
 import { seriesColor, platformColor, withAlpha, baseOptions, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, currentMonth } from '@/lib/utils'
 
@@ -126,7 +127,8 @@ export default function DashboardPage() {
 
   return (
     <CompactPage>
-      <CompactTopbar title="Overview" icon="fa-gauge-high">
+      <CompactTopbar title="Overview" icon="fa-gauge-high"
+        actions={<CrossLink href="/analytics" label="View full analysis" />}>
         <span className="text-xs text-dark1/60">Month</span>
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
           className="border border-cream rounded text-xs px-2 py-1 h-7 bg-white text-dark1 focus:outline-none focus:border-dark2" />

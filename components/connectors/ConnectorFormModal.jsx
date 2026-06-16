@@ -4,6 +4,7 @@ import Modal from '@/components/ui/Modal'
 import FieldMappingBuilder from './FieldMappingBuilder'
 import SheetPreview from './SheetPreview'
 import { CONNECTOR_TYPES, TARGET_TABLES, TRANSFORMS, validateColumnMapping } from '@/lib/connectors/transforms'
+import { SUPPORTED_SOURCE_TYPES } from '@/lib/connectors/source-config'
 import { FIELD_LISTS } from '@/lib/connectors/field-lists'
 import toast from 'react-hot-toast'
 
@@ -49,9 +50,13 @@ export default function ConnectorFormModal({ connector = null, tenants = [], onC
     name:          '',
     tenantId:      '',
     connectorType: 'order_sync',
+    sourceType:    'google_sheets',
     spreadsheetId: '',
     sheetTab:      'Sheet1',
     dataRange:     'A2:R',
+    driveFileId:    '',   // google_drive_file → sourceConfig.fileId
+    driveSheetTab:  '',   // xlsx worksheet (optional)
+    driveHeaderRows: '1', // leading rows to skip (mirrors a Sheets A2:… range)
     targetTable:   'Order',
     upsertKey:     'orderId,tenantId',
     isActive:      true,
@@ -65,13 +70,18 @@ export default function ConnectorFormModal({ connector = null, tenants = [], onC
   // Hydrate on open / connector change.
   useEffect(() => {
     if (connector) {
+      const sc = connector.sourceConfig ?? {}
       setForm({
         name:          connector.name,
         tenantId:      String(connector.tenantId),
         connectorType: connector.connectorType,
+        sourceType:    connector.sourceType || 'google_sheets',
         spreadsheetId: connector.spreadsheetId,
         sheetTab:      connector.sheetTab,
         dataRange:     connector.dataRange,
+        driveFileId:    sc.fileId ?? '',
+        driveSheetTab:  sc.sheetTab ?? '',
+        driveHeaderRows: sc.headerRows != null ? String(sc.headerRows) : '1',
         targetTable:   connector.targetTable,
         upsertKey:     Array.isArray(connector.upsertKey) ? connector.upsertKey.join(',') : '',
         isActive:      connector.isActive,
@@ -133,14 +143,22 @@ export default function ConnectorFormModal({ connector = null, tenants = [], onC
     const upsertKey = form.upsertKey.split(',').map(s => s.trim()).filter(Boolean)
     if (upsertKey.length === 0) { toast.error('upsertKey is required (e.g. orderId,tenantId)'); return }
     if (!form.tenantId) { toast.error('Select a tenant'); return }
+    const isDrive = form.sourceType === 'google_drive_file'
+    if (isDrive && !form.driveFileId.trim()) { toast.error('Drive File ID is required'); return }
 
     const payload = {
       name:          form.name.trim(),
       tenantId:      Number(form.tenantId),
       connectorType: form.connectorType,
-      spreadsheetId: form.spreadsheetId.trim(),
-      sheetTab:      form.sheetTab.trim(),
-      dataRange:     form.dataRange.trim(),
+      sourceType:    form.sourceType,
+      // Source locator — Sheets columns OR a Drive sourceConfig (server normalizes/validates).
+      ...(isDrive
+        ? { sourceConfig: {
+              fileId: form.driveFileId.trim(),
+              ...(form.driveSheetTab.trim() ? { sheetTab: form.driveSheetTab.trim() } : {}),
+              ...(form.driveHeaderRows !== '' ? { headerRows: Number(form.driveHeaderRows) } : {}),
+            } }
+        : { spreadsheetId: form.spreadsheetId.trim(), sheetTab: form.sheetTab.trim(), dataRange: form.dataRange.trim() }),
       targetTable:   form.targetTable,
       upsertKey,
       columnMapping,
@@ -205,20 +223,50 @@ export default function ConnectorFormModal({ connector = null, tenants = [], onC
             </select>
           </div>
           <div className="form-group md:col-span-2">
-            <label className="form-label">Spreadsheet ID *</label>
-            <input className="form-input font-mono text-xs" placeholder="1ksZm0f…" value={form.spreadsheetId}
-              onChange={e => setField('spreadsheetId', e.target.value)} />
+            <label className="form-label">Source *</label>
+            <select className="form-input" value={form.sourceType} onChange={e => setField('sourceType', e.target.value)}>
+              {SUPPORTED_SOURCE_TYPES.map(s => <option key={s} value={s}>{s === 'google_sheets' ? 'Google Sheets' : 'Google Drive file (csv / xlsx)'}</option>)}
+            </select>
           </div>
-          <div className="form-group">
-            <label className="form-label">Sheet Tab *</label>
-            <input className="form-input" placeholder="Sheet1" value={form.sheetTab}
-              onChange={e => setField('sheetTab', e.target.value)} />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Data Range *</label>
-            <input className="form-input font-mono text-sm" placeholder="A2:R" value={form.dataRange}
-              onChange={e => setField('dataRange', e.target.value)} />
-          </div>
+
+          {form.sourceType === 'google_sheets' ? (
+            <>
+              <div className="form-group md:col-span-2">
+                <label className="form-label">Spreadsheet ID *</label>
+                <input className="form-input font-mono text-xs" placeholder="1ksZm0f…" value={form.spreadsheetId}
+                  onChange={e => setField('spreadsheetId', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Sheet Tab *</label>
+                <input className="form-input" placeholder="Sheet1" value={form.sheetTab}
+                  onChange={e => setField('sheetTab', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Data Range *</label>
+                <input className="form-input font-mono text-sm" placeholder="A2:R" value={form.dataRange}
+                  onChange={e => setField('dataRange', e.target.value)} />
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="form-group md:col-span-2">
+                <label className="form-label">Drive File ID *</label>
+                <input className="form-input font-mono text-xs" placeholder="1AbCdEf… (from the file's share URL)" value={form.driveFileId}
+                  onChange={e => setField('driveFileId', e.target.value)} />
+                <p className="text-[10px] text-orange/90 mt-1"><i className="fas fa-triangle-exclamation" /> Share the file with the <b>service-account email</b> (Viewer) — the #1 Drive gotcha. csv or xlsx only (a native Google Sheet → use the Google Sheets source instead).</p>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Sheet name <span className="text-dark2/40 font-normal">(xlsx, optional)</span></label>
+                <input className="form-input" placeholder="(first sheet)" value={form.driveSheetTab}
+                  onChange={e => setField('driveSheetTab', e.target.value)} />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Header rows to skip <span className="text-dark2/40 font-normal">(default 1)</span></label>
+                <input type="number" className="form-input font-mono text-sm" placeholder="1" value={form.driveHeaderRows}
+                  onChange={e => setField('driveHeaderRows', e.target.value)} />
+              </div>
+            </>
+          )}
           <div className="form-group md:col-span-2">
             <label className="form-label">Upsert Key * <span className="text-dark2/40 font-normal">(comma-separated field names)</span></label>
             <input className="form-input font-mono text-sm" placeholder="orderId,tenantId" value={form.upsertKey}
@@ -256,13 +304,19 @@ export default function ConnectorFormModal({ connector = null, tenants = [], onC
           )}
         </div>
 
-        {/* Sheet preview — column-index reference for the builder below */}
-        <SheetPreview
-          connectorId={connector?.id}
-          spreadsheetId={form.spreadsheetId}
-          sheetTab={form.sheetTab}
-          dataRange={form.dataRange}
-        />
+        {/* Sheet preview — column-index reference for the builder below (Sheets only) */}
+        {form.sourceType === 'google_sheets' ? (
+          <SheetPreview
+            connectorId={connector?.id}
+            spreadsheetId={form.spreadsheetId}
+            sheetTab={form.sheetTab}
+            dataRange={form.dataRange}
+          />
+        ) : (
+          <div className="border-t border-cream/60 pt-2 mt-2 text-[11px] text-dark2/60">
+            <i className="fas fa-circle-info" /> Live preview is Google-Sheets only. For a Drive file, map fields by <b>0-based column index</b> (column A = 0, B = 1, …), matching the file&apos;s columns after the skipped header row(s).
+          </div>
+        )}
 
         {/* Column mapping builder */}
         <div className="border-t border-cream/60 pt-2 mt-2">

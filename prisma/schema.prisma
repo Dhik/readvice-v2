@@ -754,7 +754,38 @@ model CohortRetention {
   @@map("cohort_retention")
 }
 
+// ─── Calculated Fields (Part B — user-defined analytics metrics) ─────────────
+// Tenant-scoped, per-module user-defined metrics. `formula` is an arithmetic-only
+// expression over a module's FIELD_MANIFEST param keys (e.g. "(revenue-hpp)/hpp*100"),
+// evaluated by lib/analytics/calc-field.js (sandboxed mathjs — no fn calls / no eval).
+// A calc field is `dummy` when its formula references any dummy manifest param
+// (computed at eval time from the manifest, not stored). Mirrors the analytics-model
+// pattern (no `tenant` relation — tenantId Int only).
+model CalculatedField {
+  id        Int      @id @default(autoincrement())
+  tenantId  Int      @map("tenant_id")
+  module    String                                  // e.g. 'gross-margin' (matches the engine/route key)
+  key       String                                  // stable identifier within the module
+  label     String                                  // display name
+  formula   String                                  // arithmetic over FIELD_MANIFEST param keys
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@unique([tenantId, module, key])
+  @@index([tenantId, module])
+  @@map("calculated_field")
+}
+
 // ─── Talent ─────────────────────────────────────────────
+
+// Marketing-funnel objective for objective-aware Talent-ROI (Part C). The "return"
+// axis is judged per objective (Awareness→reach, Consideration→engagement,
+// Conversion→sales). Lives on Talent (the durable entity), inferred by default
+// (objectiveInferred:true) until a brand owner overrides it (C3 flips it false).
+enum TalentObjective {
+  Awareness
+  Consideration
+  Conversion
+}
 
 model Talent {
   id                    Int       @id @default(autoincrement())
@@ -791,6 +822,8 @@ model Talent {
   platform              String?
   affiliateStatus       String?   @map("affiliate_status")
   gdriveKolAccepting    String?   @map("gdrive_kol_accepting")
+  objective             TalentObjective?              // Part C — Awareness/Consideration/Conversion (inferred)
+  objectiveInferred     Boolean   @default(true) @map("objective_inferred") // false once a brand owner overrides (C3)
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
 
@@ -821,6 +854,7 @@ model TalentReturn {
   attributedGmv     Decimal  @db.Decimal(15, 2) @map("attributed_gmv")     // DUMMY
   contentViews      Int      @default(0) @map("content_views")             // DUMMY
   conversions       Int      @default(0)                                   // DUMMY
+  engagementActions Int      @default(0) @map("engagement_actions")        // DUMMY (Part C C-gap: likes+comments+shares)
   source            String   @default("DUMMY")
   createdAt         DateTime @default(now()) @map("created_at")
 
@@ -1207,7 +1241,14 @@ model DataConnector {
   tenantId       Int       @map("tenant_id")
   name           String
   connectorType  String    @map("connector_type")   // order_sync | ad_spend_sync | visit_sync | netprofit_sync
-  spreadsheetId  String    @map("spreadsheet_id")
+  // Part E — source generalization. Existing connectors default to google_sheets with a
+  // null sourceConfig and keep using the legacy spreadsheetId/sheetTab/dataRange columns
+  // (back-compat read mapping in lib/connectors/source-config.js). sourceConfig, when set,
+  // wins — holds the per-source locator (Sheets → {spreadsheetId,sheetTab,dataRange};
+  // Drive → {fileId,sheetTab?,headerRows?}; OneDrive → E3, deferred).
+  sourceType     String    @default("google_sheets") @map("source_type")
+  sourceConfig   Json?     @map("source_config")
+  spreadsheetId  String    @map("spreadsheet_id")    // legacy Sheets locator (kept for back-compat; '' for non-Sheets)
   sheetTab       String    @map("sheet_tab")
   dataRange      String    @map("data_range")
   targetTable    String    @map("target_table")

@@ -2,6 +2,7 @@ import { requireSuperAdmin } from '@/lib/api-helpers'
 import { prisma } from '@/lib/prisma'
 import { NextResponse } from 'next/server'
 import { CONNECTOR_TYPES, TARGET_TABLES, validateColumnMapping } from '@/lib/connectors/transforms'
+import { validateSourceConfig, persistedSourceFields } from '@/lib/connectors/source-config'
 
 // GET /api/connectors — superadmin. Lists connectors across ALL tenants.
 // Optional filters: ?tenantId= , ?connectorType=
@@ -33,9 +34,8 @@ function validateBody(body) {
   if (!Number.isInteger(body.tenantId)) return 'A tenant is required'
   if (!CONNECTOR_TYPES.includes(body.connectorType)) return `Invalid connectorType (allowed: ${CONNECTOR_TYPES.join(', ')})`
   if (!TARGET_TABLES.includes(body.targetTable))     return `Invalid targetTable (allowed: ${TARGET_TABLES.join(', ')})`
-  if (!body.spreadsheetId?.trim())   return 'spreadsheetId is required'
-  if (!body.sheetTab?.trim())        return 'sheetTab is required'
-  if (!body.dataRange?.trim())       return 'dataRange is required'
+  const srcErr = validateSourceConfig(body)   // Part E — source fields validated by sourceType
+  if (srcErr) return srcErr
   if (!Array.isArray(body.upsertKey) || body.upsertKey.length === 0) return 'upsertKey must be a non-empty array'
   try {
     validateColumnMapping(body.columnMapping)
@@ -62,9 +62,7 @@ export async function POST(request) {
         tenantId:      body.tenantId,
         name:          body.name.trim(),
         connectorType: body.connectorType,
-        spreadsheetId: body.spreadsheetId.trim(),
-        sheetTab:      body.sheetTab.trim(),
-        dataRange:     body.dataRange.trim(),
+        ...persistedSourceFields(body),   // sourceType + sourceConfig + legacy Sheets columns
         targetTable:   body.targetTable,
         upsertKey:     body.upsertKey,
         columnMapping: body.columnMapping,

@@ -10,9 +10,17 @@ import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
+import CrossLink from '@/components/dashboard/CrossLink'
 import { ParetoChart, ShareDonut, TrendChart, MoMChart, keyColor } from '@/components/ads-allocation/AllocationCharts'
 import DetailModal from '@/components/ads-allocation/DetailModal'
+import CalculatedFieldModal from '@/components/analytics/CalculatedFieldModal'
+import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
+import { useCalcFields, safeEvaluate, fmtCalc } from '@/components/analytics/calcFieldHelpers'
 import { formatCurrency, formatNumber } from '@/lib/utils'
+
+const MODULE = 'ads-allocation'
+// Map a Pareto row → manifest keys (momPct is the engine's changePct param).
+const rowToParams = r => ({ spend: r.spend, sharePct: r.sharePct, cumulativePct: r.cumulativePct, changePct: r.momPct ?? 0 })
 
 const shortRp = v => { const n = Number(v) || 0; if (n >= 1e9) return 'Rp' + (n / 1e9).toFixed(2) + 'B'; if (n >= 1e6) return 'Rp' + (n / 1e6).toFixed(1) + 'M'; if (n >= 1e3) return 'Rp' + (n / 1e3).toFixed(0) + 'K'; return 'Rp' + Math.round(n) }
 const fetchJson = (url) => fetch(url).then(r => r.json()).then(d => (d?.error ? null : d)).catch(() => null)
@@ -38,6 +46,8 @@ export default function AdsAllocationPage() {
   const [data, setData]   = useState(null)
   const [loading, setLoading] = useState(true)
   const [detail, setDetail] = useState(null)
+  const [showCalc, setShowCalc] = useState(false)
+  const { fields: calcFields, manifest, reload: reloadCalc, removeField } = useCalcFields(MODULE)
 
   useEffect(() => {
     let alive = true
@@ -90,6 +100,27 @@ export default function AdsAllocationPage() {
   const trendEmpty = !block?.trend?.points?.length
   const trendRange = block?.trend?.range
 
+  // ── Calc fields (Part B5) — overview tile + table column + CHART SERIES (per Pareto item) ──
+  const overviewValues = useMemo(() => ({
+    spend: ov?.totalSpend ?? 0, sharePct: 100, cumulativePct: 100, changePct: ov?.mom?.changePct ?? 0,
+  }), [ov])
+  const extraTiles = useMemo(() => calcFields.map(f => {
+    const { value, dummy } = safeEvaluate(f.formula, overviewValues, manifest)
+    return { label: f.label, value: fmtCalc(value), dummy, onRemove: () => removeField(f.id) }
+  }), [calcFields, overviewValues, manifest, removeField])
+  const extraColumns = useMemo(() => calcFields.map(f => ({
+    key: String(f.id), label: f.label, format: fmtCalc,
+    dummy: safeEvaluate(f.formula, {}, manifest).dummy,
+    resolve: row => safeEvaluate(f.formula, rowToParams(row), manifest).value,
+    onRemove: () => removeField(f.id),
+  })), [calcFields, manifest, removeField])
+  // Chart-series scope: each calc field resolved per Pareto item → an extra line series.
+  const paretoItems = block?.pareto?.items ?? []
+  const extraSeries = useMemo(() => calcFields.map(f => ({
+    label: f.label, dummy: safeEvaluate(f.formula, {}, manifest).dummy,
+    data: paretoItems.map(it => safeEvaluate(f.formula, rowToParams(it), manifest).value),
+  })), [calcFields, paretoItems, manifest])
+
   return (
     <CompactPage>
       <CompactTopbar title="Ads Allocation" icon="fa-chart-simple"
@@ -101,7 +132,9 @@ export default function AdsAllocationPage() {
             ))}
           </div>
         }>
+        <button onClick={() => setShowCalc(true)} className="sv-tbtn sv-tbtn-dark"><i className="fas fa-calculator" /> + Field</button>
         <button onClick={() => download(`ads-allocation-${lens}-${month || 'all'}.csv`, toCsv(rows), 'text/csv')} className="sv-tbtn sv-tbtn-ghost" title="Export CSV"><i className="fas fa-file-csv" /> CSV</button>
+        <CrossLink href="/ads/marketplace" label="Manage data" icon="fa-pen-to-square" />
         <span className="text-xs text-dark1/60 ml-1">Period</span>
         <select value={month} onChange={e => setMonth(e.target.value)}
           className="border border-cream rounded text-xs px-2 py-1 h-7 bg-white text-dark1 focus:outline-none focus:border-dark2">
@@ -120,7 +153,7 @@ export default function AdsAllocationPage() {
         </span>
       </div>
 
-      <IconKpiStrip tiles={tiles} />
+      <IconKpiStrip tiles={tiles} extraFields={extraTiles} />
 
       {/* Pareto + Share row */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
@@ -129,7 +162,7 @@ export default function AdsAllocationPage() {
           bodyClass="p-2">
           {loading ? <div style={{ height: 300 }} className="flex items-center justify-center text-dark1/30 text-xs">Loading…</div>
             : !block?.pareto?.items?.length ? <div style={{ height: 300 }} className="flex items-center justify-center text-dark1/30 text-xs">No spend in range.</div>
-            : <ParetoChart items={block.pareto.items} height={300} onSelect={openDetail} />}
+            : <ParetoChart items={block.pareto.items} extraSeries={extraSeries} height={300} onSelect={openDetail} />}
         </CompactPanel>
 
         <CompactPanel title={`Share of ${cfg.source} spend`} icon="fa-chart-pie" bodyClass="p-2">
@@ -165,11 +198,15 @@ export default function AdsAllocationPage() {
       <CompactPanel title={`${cfg.label} — ${rows.length}`} icon="fa-table" bodyClass="p-2">
         <DataGrid data={rows} columns={columns} searchable onRowClick={r => openDetail(r.key)}
           defaultSort={{ key: 'spend', dir: 'desc' }} pageSize={25} loading={loading}
-          emptyText="No spend in this range." />
+          emptyText="No spend in this range." extraFields={extraColumns} />
         <p className="text-[10px] text-dark1/40 mt-1">Click a row for {cfg.noun} breakdown + daily trend{lens === 'category' ? ' + subcategory split' : ''}. Expense only — no ROAS.</p>
       </CompactPanel>
 
       {detail && <DetailModal detail={detail} dim={detail._dim} color={detail._color} onClose={() => setDetail(null)} />}
+      <CalculatedFieldModal isOpen={showCalc} onClose={() => setShowCalc(false)} module={MODULE}
+        manifest={manifest} sampleValues={overviewValues} sampleLabel="overview totals" onSaved={reloadCalc} />
+      <AnalyticsAIPanel module="ads-allocation" context={data}
+        suggestions={['Where is the spend concentrated?', 'Can you compute ROAS from this?']} />
     </CompactPage>
   )
 }

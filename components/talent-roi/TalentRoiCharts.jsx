@@ -14,6 +14,12 @@ export const DUMMY_COLOR = '#E07B39'  // brand orange — DUMMY return
 export const ROI_QUAD_COLORS = { 'Star': '#22c55e', 'Premium': '#6B8E9E', 'Overpriced': '#dc3545', 'Low Impact': '#C9A66B' }
 export const roiQuadColor = q => ROI_QUAD_COLORS[q] ?? '#8B8B8B'
 const QUAD_ORDER = ['Star', 'Premium', 'Overpriced', 'Low Impact']
+
+// Objective category colors (Part C — points are color-coded by objective; the
+// real/dummy honesty stays in the axis labels/tooltips/tiles, not the point hue).
+export const OBJECTIVE_COLORS = { Awareness: '#6B8E9E', Consideration: '#C9A66B', Conversion: '#E07B39' }
+export const objectiveColor = o => OBJECTIVE_COLORS[o] ?? '#8B8B8B'
+const OBJ_ORDER = ['Awareness', 'Consideration', 'Conversion']
 const shortRp = v => { const n = Number(v) || 0; if (n >= 1e9) return (n / 1e9).toFixed(1) + 'B'; if (n >= 1e6) return (n / 1e6).toFixed(0) + 'M'; if (n >= 1e3) return (n / 1e3).toFixed(0) + 'K'; return String(Math.round(n)) }
 const radiusFor = v => Math.max(5, Math.min(30, (Number(v) || 0) / 60000 + 5))
 
@@ -41,51 +47,88 @@ function dividerPlugin(xMed, yMed, corners) {
   }
 }
 
-// MAIN: cost (x, REAL) × return (y, DUMMY), bubble = views, colored by quadrant.
-export function TalentRoiQuadrant({ points = [], medianCost, medianReturn, height = 440, onSelect }) {
-  const datasets = QUAD_ORDER.map(q => ({
-    label: q,
-    data: points.filter(p => p.quadrant === q).map(p => ({
-      x: p.x, y: p.y, r: radiusFor(p.views), _id: p.talentId, _name: p.name, _type: p.type, _roi: p.roi, _views: p.views,
-    })),
-    backgroundColor: withAlpha(roiQuadColor(q), 0.55), borderColor: roiQuadColor(q), borderWidth: 1,
-    hoverBackgroundColor: withAlpha(roiQuadColor(q), 0.85),
+// MAIN (objective-aware, Part C): cost (x, REAL) × efficiency (y), bubble = views,
+// points COLOR-CODED BY OBJECTIVE. 'All' → normalizedEfficiency (0–100, each talent on
+// its OWN objective — cross-objective comparable); a specific objective → that objective's
+// raw metric. The y-axis title + tooltip metric are DRIVEN BY objectiveView (engine-
+// provided — never hardcoded here, so page & engine can't drift). Honesty: x=cost REAL,
+// y=efficiency DUMMY-derived (orange axis). Lone-in-group talents (unrankableIds) flagged.
+export function TalentRoiQuadrant({ points = [], filter = 'All', objectiveView, height = 440, onSelect, unrankableIds }) {
+  const isAll = filter === 'All'
+  const unrank = unrankableIds ?? new Set()
+  const yOf = p => (isAll ? p.normalizedEfficiency : p.objectiveMetric)
+  const present = isAll ? OBJ_ORDER : [filter]
+  const mkData = obj => points.filter(p => p.objective === obj && yOf(p) != null).map(p => ({
+    x: p.x, y: yOf(p), r: radiusFor(p.views),
+    _id: p.talentId, _name: p.name, _type: p.type, _obj: p.objective, _inferred: p.objectiveInferred,
+    _metric: p.objectiveMetric, _metricLabel: p.objectiveMetricLabel, _metricUnit: p.objectiveMetricUnit,
+    _outcome: p.objectiveOutcome, _outcomeLabel: p.objectiveOutcomeLabel, _norm: p.normalizedEfficiency,
+    _views: p.views, _unrank: unrank.has(p.talentId),
   }))
+  const datasets = present.map(obj => ({
+    label: obj,
+    data: mkData(obj),
+    backgroundColor: withAlpha(objectiveColor(obj), 0.5), borderColor: objectiveColor(obj), borderWidth: 1,
+    hoverBackgroundColor: withAlpha(objectiveColor(obj), 0.85),
+  }))
+  // Median guides: cost (x) + efficiency midpoint (50 for the 0–100 'All' axis, else median metric).
+  const xs = points.map(p => p.x).filter(v => v > 0).sort((a, b) => a - b)
+  const medCost = xs.length ? xs[Math.floor(xs.length / 2)] : NaN
+  const ys = present.flatMap(o => mkData(o).map(d => d.y)).sort((a, b) => a - b)
+  const yMed = isAll ? 50 : (ys.length ? ys[Math.floor(ys.length / 2)] : NaN)
+  const yTitle = objectiveView?.yLabel || (isAll ? 'Objective efficiency (0–100, per-objective normalized)' : 'Objective efficiency')
   const options = mergeOptions(baseOptions, {
     onClick: (_e, els) => { if (onSelect && els?.length) { const ds = datasets[els[0].datasetIndex]; const pt = ds?.data[els[0].index]; if (pt?._id) onSelect(pt._id) } },
     scales: {
       x: { title: { display: true, text: 'Talent cost (REAL — rate card)', font: { size: 10 } }, ticks: { callback: v => shortRp(v), font: { size: 9 } }, beginAtZero: true },
-      y: { title: { display: true, text: '⚠ Attributed return (DUMMY — fabricated)', font: { size: 10 }, color: DUMMY_COLOR }, ticks: { callback: v => shortRp(v), font: { size: 9 } }, beginAtZero: true },
+      y: { title: { display: true, text: '⚠ ' + yTitle + ' (DUMMY-derived)', font: { size: 10 }, color: DUMMY_COLOR }, ticks: { font: { size: 9 } }, beginAtZero: true, ...(isAll ? { suggestedMax: 100 } : {}) },
     },
     plugins: {
       legend: { position: 'top', labels: { boxWidth: 9, font: { size: 9 }, usePointStyle: true } },
       tooltip: { callbacks: {
         title: items => items[0]?.raw?._name || '',
-        label: c => { const r = c.raw; return [
-          `${r._type}`, `Cost (real): ${formatCurrency(r.x)}`, `Return (DUMMY): ${formatCurrency(r.y)}`,
-          `ROI: ${r._roi ?? '—'}× (dummy) · views ${formatNumber(r._views)} (dummy)`, `Quadrant: ${c.dataset.label}`,
-        ] },
+        label: c => { const r = c.raw; const lines = [
+          `${r._type} · ${r._obj}${r._inferred ? ' (inferred)' : ''}`,
+          `Cost (real): ${formatCurrency(r.x)}`,
+          `${r._outcomeLabel || 'Outcome'}: ${formatNumber(r._outcome)} (dummy)`,
+          `${r._metricLabel || 'Efficiency'}: ${r._metric ?? '—'}${r._metricUnit ? ' ' + r._metricUnit : ''} (dummy)`,
+          `Normalized: ${r._norm ?? '—'}/100 (dummy)`,
+        ]; if (r._unrank) lines.push('⚠ only talent in its objective — neutral 50, not truly ranked'); return lines },
       } },
     },
   })
-  const corners = { tl: 'Star', tr: 'Premium', bl: 'Low Impact', br: 'Overpriced' }
-  return <div style={{ height }}><Bubble data={{ datasets }} options={options} plugins={[dividerPlugin(medianCost, medianReturn, corners)]} /></div>
+  return <div style={{ height }}><Bubble data={{ datasets }} options={options} plugins={[dividerPlugin(medCost, yMed, null)]} /></div>
 }
 
-// COMPANION 1: ranked leaderboard — talents by ROI (DUMMY).
-export function RoiLeaderboard({ items = [], height = 360, onSelect }) {
-  const top = items.filter(i => i.roi != null).slice(0, 15)
+// COMPANION 1 (objective-aware leaderboard): talents ranked by EFFICIENCY — normalized
+// 0–100 ('All', cross-objective comparable) or the objective's raw metric (specific).
+// Bars color-coded by objective; metric label from objectiveView; honesty in the axis
+// (DUMMY) + tooltip. Lone-in-group talents marked ⚠.
+export function RoiLeaderboard({ points = [], filter = 'All', objectiveView, height = 360, onSelect, unrankableIds }) {
+  const isAll = filter === 'All'
+  const unrank = unrankableIds ?? new Set()
+  const valOf = p => (isAll ? p.normalizedEfficiency : p.objectiveMetric)
+  const top = points.filter(p => valOf(p) != null).sort((a, b) => valOf(b) - valOf(a)).slice(0, 15)
+  const metricLabel = objectiveView?.metricLabel || (isAll ? 'Normalized efficiency' : 'Objective metric')
   const data = {
-    labels: top.map(i => i.name),
-    datasets: [{ label: 'ROI (dummy)', data: top.map(i => i.roi),
-      backgroundColor: top.map(i => withAlpha(i.roi >= 1 ? SEMANTIC.success : SEMANTIC.danger, 0.7)),
-      borderColor: top.map(i => i.roi >= 1 ? SEMANTIC.success : SEMANTIC.danger), borderWidth: 1 }],
+    labels: top.map(i => i.name + (unrank.has(i.talentId) ? ' ⚠' : '')),
+    datasets: [{ label: metricLabel + ' (dummy)', data: top.map(valOf),
+      backgroundColor: top.map(i => withAlpha(objectiveColor(i.objective), 0.75)),
+      borderColor: top.map(i => objectiveColor(i.objective)), borderWidth: 1 }],
   }
   const options = mergeOptions(baseOptions, {
     indexAxis: 'y',
     onClick: (_e, els) => { if (onSelect && els?.length) { const it = top[els[0].index]; if (it) onSelect(it.talentId) } },
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => { const i = top[c.dataIndex]; return [`ROI ${c.parsed.x}× (DUMMY)`, `cost ${formatCurrency(i.cost)} (real) · return ${formatCurrency(i.attributedRevenue)} (dummy)`] } } } },
-    scales: { x: { beginAtZero: true, ticks: { callback: v => v + '×', font: { size: 9 } }, title: { display: true, text: 'ROI × (DUMMY)', font: { size: 9 }, color: DUMMY_COLOR } }, y: { ticks: { font: { size: 8 } } } },
+    plugins: { legend: { display: false }, tooltip: { callbacks: {
+      title: items => top[items[0].dataIndex]?.name || '',
+      label: c => { const i = top[c.dataIndex]; const lines = [
+        `${i.type} · ${i.objective}${i.objectiveInferred ? ' (inferred)' : ''}`,
+        `${metricLabel}: ${valOf(i)}${isAll ? '/100' : (i.objectiveMetricUnit ? ' ' + i.objectiveMetricUnit : '')} (dummy)`,
+        `cost ${formatCurrency(i.x)} (real)`,
+      ]; if (unrank.has(i.talentId)) lines.push('⚠ only talent in its objective — neutral 50'); return lines } } } },
+    scales: { x: { beginAtZero: true, ...(isAll ? { suggestedMax: 100 } : {}), ticks: { font: { size: 9 } },
+      title: { display: true, text: metricLabel + ' (DUMMY)', font: { size: 9 }, color: DUMMY_COLOR } },
+      y: { ticks: { font: { size: 8 } } } },
   })
   return <div style={{ height }}><Bar data={data} options={options} /></div>
 }
@@ -112,11 +155,12 @@ function dumbbellLinePlugin() {
     },
   }
 }
-export function CostReturnDumbbell({ items = [], height = 520, onSelect }) {
+export function CostReturnDumbbell({ items = [], height = 520, onSelect, unrankableIds }) {
   // Sort by ROI desc (winners on top); nulls last. Keep ALL talents.
+  const unrank = unrankableIds ?? new Set()
   const rows = [...items].sort((a, b) => (b.roi ?? -1) - (a.roi ?? -1))
-  const names = rows.map(i => i.name)
-  const mk = (key) => rows.map(i => ({ x: i[key], y: i.name, _id: i.talentId, _name: i.name, _cost: i.cost, _ret: i.attributedRevenue, _roi: i.roi }))
+  const names = rows.map(i => i.name + (unrank.has(i.talentId) ? ' ⚠' : ''))
+  const mk = (key) => rows.map(i => ({ x: i[key], y: i.name + (unrank.has(i.talentId) ? ' ⚠' : ''), _id: i.talentId, _name: i.name, _cost: i.cost, _ret: i.attributedRevenue, _roi: i.roi, _obj: i.objective, _inferred: i.objectiveInferred, _norm: i.normalizedEfficiency, _unrank: unrank.has(i.talentId) }))
   const data = {
     datasets: [
       { label: 'Cost (REAL)', data: mk('cost'), backgroundColor: REAL_COLOR, borderColor: REAL_COLOR, pointRadius: 5, pointHoverRadius: 7 },
@@ -129,11 +173,11 @@ export function CostReturnDumbbell({ items = [], height = 520, onSelect }) {
       legend: { position: 'top', labels: { boxWidth: 9, font: { size: 9 }, usePointStyle: true } },
       tooltip: { callbacks: {
         title: items => items[0]?.raw?._name || '',
-        label: c => { const r = c.raw; return [
-          `${c.dataset.label}: ${formatCurrency(c.dataset.label[0] === 'C' ? r._cost : r._ret)}`,
+        label: c => { const r = c.raw; const lines = [
+          `${r._obj ?? '—'}${r._inferred ? ' (inferred)' : ''}`,
           `cost ${formatCurrency(r._cost)} (real) · return ${formatCurrency(r._ret)} (dummy)`,
-          `ROI ${r._roi ?? '—'}× (dummy)`,
-        ] },
+          `ROI ${r._roi ?? '—'}× · efficiency ${r._norm ?? '—'}/100 (dummy)`,
+        ]; if (r._unrank) lines.push('⚠ only talent in its objective — neutral 50'); return lines },
       } },
     },
     scales: {

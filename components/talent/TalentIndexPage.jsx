@@ -1,6 +1,7 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
 import { useSession } from 'next-auth/react'
+import CrossLink from '@/components/dashboard/CrossLink'
 import toast from 'react-hot-toast'
 
 const TYPES     = ['Affiliate', 'KOL', 'Content Creator', 'Clipper']
@@ -615,6 +616,8 @@ export default function TalentIndexPage() {
             </button>
           ))}
         </div>
+
+        <CrossLink href="/analytics/talent-roi" label="Analyze" icon="fa-chart-line" />
 
         <div className="ml-auto flex items-center gap-1.5">
           <input type="text" placeholder="Search username / name…" value={search}

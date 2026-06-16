@@ -6,6 +6,7 @@ import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
+import CrossLink from '@/components/dashboard/CrossLink'
 import { seriesColor, platformColor, withAlpha, SEMANTIC, baseOptions, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, currentMonth } from '@/lib/utils'
 
@@ -74,11 +75,12 @@ export default function ReportPage() {
   return (
     <CompactPage>
       <CompactTopbar title="Report" icon="fa-file-lines"
-        actions={
+        actions={<>
+          <CrossLink href="/analytics/ads-allocation" label="View full analysis" />
           <a href={`/api/report/export?month=${month}`} className="sv-tbtn sv-tbtn-success" title="Download .xlsx">
             <i className="fas fa-file-excel" /> Export Excel
           </a>
-        }>
+        </>}>
         <span className="text-xs text-dark1/60">Month</span>
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
           className="border border-cream rounded text-xs px-2 py-1 h-7 bg-white text-dark1 focus:outline-none focus:border-dark2" />

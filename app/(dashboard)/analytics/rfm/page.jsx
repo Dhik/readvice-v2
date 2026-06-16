@@ -6,6 +6,7 @@
 // /api/analytics/rfm; this page only fetches, presents, and surfaces dummy flags.
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import CompactPage from '@/components/dashboard/CompactPage'
+import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
 import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
@@ -195,6 +196,8 @@ export default function RfmPage() {
       {detail && <CustomerDetailModal detail={detail} onClose={() => setDetail(null)} />}
       {showRecs && <RecommendationsModal rec={recs} onClose={() => setShowRecs(false)} />}
       {showAdv && <AdvancedFilterModal initial={advFilters} segmentOptions={SEGMENT_ORDER} onApply={applyAdv} onClose={() => setShowAdv(false)} />}
+      <AnalyticsAIPanel module="rfm" context={{ overview, segments, scatter }}
+        suggestions={['Which segments need attention?', 'How complete is this RFM (coverage)?']} />
     </CompactPage>
   )
 }

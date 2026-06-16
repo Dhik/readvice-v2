@@ -6,6 +6,7 @@ import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
+import CrossLink from '@/components/dashboard/CrossLink'
 import { seriesColor, withAlpha, SEMANTIC, baseOptions, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, currentMonth } from '@/lib/utils'
 
@@ -89,7 +90,8 @@ export default function CustomerPage() {
 
   return (
     <CompactPage>
-      <CompactTopbar title="Customers" icon="fa-users">
+      <CompactTopbar title="Customers" icon="fa-users"
+        actions={<CrossLink href="/analytics/rfm" label="View full analysis" />}>
         <span className="text-xs text-dark1/60">Month</span>
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
           className="border border-cream rounded text-xs px-2 py-1 h-7 bg-white text-dark1 focus:outline-none focus:border-dark2" />

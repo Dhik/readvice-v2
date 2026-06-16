@@ -31,7 +31,7 @@ const datetimeSort = (a, b, id) => (new Date(a.getValue(id)).getTime() || 0) - (
 export default function DataGrid({
   data = [], columns = [], searchable = false,
   defaultSort, pageSize = 25, emptyText = 'No data', loading = false,
-  className = '', onRowClick,
+  className = '', onRowClick, extraFields = [],
 }) {
   const [sorting, setSorting]             = useState(
     defaultSort ? [{ id: defaultSort.key, desc: defaultSort.dir === 'desc' }] : [])
@@ -40,24 +40,44 @@ export default function DataGrid({
 
   const paginate = pageSize > 0
 
-  const columnDefs = useMemo(() => columns.map(col => ({
-    accessorKey: col.key,
-    header: col.label,
-    enableSorting: !!col.sortable,
-    enableGlobalFilter: !!col.searchable,
-    sortingFn: col.sortType === 'date' ? datetimeSort
-             : col.sortType === 'number' ? numericSort
-             : 'alphanumeric',
-    // 'equalsString' coerces both sides to string → works for boolean/number
-    // categorical values, not just strings.
-    filterFn: col.filter === 'range' ? 'inNumberRange'
-            : col.filter === 'select' ? 'equalsString'
-            : 'auto',
-    cell: info => col.render
-      ? col.render(info.row.original)
-      : (col.format ? col.format(info.getValue()) : (info.getValue() ?? '—')),
-    meta: { align: col.align ?? 'left', filter: col.filter ?? false, filterFormat: col.filterFormat },
-  })), [columns])
+  const columnDefs = useMemo(() => [
+    ...columns.map(col => ({
+      accessorKey: col.key,
+      header: col.label,
+      enableSorting: !!col.sortable,
+      enableGlobalFilter: !!col.searchable,
+      sortingFn: col.sortType === 'date' ? datetimeSort
+               : col.sortType === 'number' ? numericSort
+               : 'alphanumeric',
+      // 'equalsString' coerces both sides to string → works for boolean/number
+      // categorical values, not just strings.
+      filterFn: col.filter === 'range' ? 'inNumberRange'
+              : col.filter === 'select' ? 'equalsString'
+              : 'auto',
+      cell: info => col.render
+        ? col.render(info.row.original)
+        : (col.format ? col.format(info.getValue()) : (info.getValue() ?? '—')),
+      meta: { align: col.align ?? 'left', filter: col.filter ?? false, filterFormat: col.filterFormat },
+    })),
+    // Calc-field columns (Part B4) — value resolved per-row via the evaluator (resolve()).
+    // `dummy` drives a header dev badge; `onRemove` adds a × (user-defined fields).
+    ...extraFields.map(f => ({
+      id: `calc_${f.key}`,
+      accessorFn: row => f.resolve(row),
+      enableSorting: true,
+      sortingFn: numericSort,
+      header: () => (
+        <span className="inline-flex items-center gap-1">
+          {f.label}
+          <span className="text-[8px] uppercase tracking-wide px-1 rounded bg-dark2/10 text-dark2" title="User-defined calculated field">ƒx</span>
+          {f.dummy && <span className="text-[8px] uppercase tracking-wide px-1 rounded bg-orange/15 text-orange" title="Dummy-derived calc field">dev</span>}
+          {f.onRemove && <span role="button" onClick={e => { e.stopPropagation(); f.onRemove() }} title="Remove" className="text-dark1/30 hover:text-red-500 cursor-pointer">&times;</span>}
+        </span>
+      ),
+      cell: info => { const v = info.getValue(); return v == null ? '—' : (f.format ? f.format(v) : v) },
+      meta: { align: 'right', filter: false },
+    })),
+  ], [columns, extraFields])
 
   const table = useReactTable({
     data,
@@ -82,7 +102,7 @@ export default function DataGrid({
   const filteredCount = table.getFilteredRowModel().rows.length
   const pageRows      = table.getRowModel().rows
   const totalPages    = table.getPageCount()
-  const colCount      = columns.length
+  const colCount      = columns.length + extraFields.length
 
   const clearAll = () => { setGlobalFilter(''); setColumnFilters([]) }
 

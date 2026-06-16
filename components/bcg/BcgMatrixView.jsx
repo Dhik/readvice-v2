@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState, useCallback } from 'react'
 import Link from 'next/link'
 import CompactPage from '@/components/dashboard/CompactPage'
+import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
 import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
@@ -249,6 +250,8 @@ export default function BcgMatrixView({ lens = 'traffic' }) {
       {detail && <ProductDetailModal detail={detail} lens={lens} onClose={() => setDetail(null)} />}
       {showRecs && <RecommendationsModal rec={recs} lens={lens} onClose={() => setShowRecs(false)} />}
       {showAdv && <AdvancedFilterModal initial={advFilters} quadrantOptions={cfg.order} onApply={applyAdv} onClose={() => setShowAdv(false)} />}
+      <AnalyticsAIPanel module="bcg" context={{ overview, products: allProducts }}
+        suggestions={['Which products are Stars?', 'Are the quadrant positions real?']} />
     </CompactPage>
   )
 }

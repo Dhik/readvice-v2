@@ -111,3 +111,43 @@ POST /api/connectors/1/sync
 On a fetch failure (bad credentials / sheet not shared / wrong tab name) the route
 returns **502** with a clear message and does **not** touch the connector's
 `lastSyncAt` / `lastSyncResult` — no partial state is written.
+
+---
+
+## Source types (Part E) — Google Sheets · Google Drive file
+
+A connector now carries a **`sourceType`** discriminator + a generic **`sourceConfig`** Json,
+so the model is no longer Sheets-shaped. The transform / mapping / write layer is **identical**
+across sources — only the *fetch* differs.
+
+| sourceType | Locator (`sourceConfig`) | Auth | Status |
+|---|---|---|---|
+| `google_sheets` *(default)* | `{ spreadsheetId, sheetTab, dataRange }` — or the legacy columns when `sourceConfig` is null | service-account, Sheets scope | live |
+| `google_drive_file` | `{ fileId, sheetTab?, headerRows? }` | **same** service-account + Drive read-only scope | live (E2) |
+| `onedrive_file` | — | OAuth 2.0 (per-tenant) | **deferred (E3)** — own design pass |
+
+**Back-compat:** every existing connector has `sourceType='google_sheets'` and a null
+`sourceConfig`, so it keeps reading the legacy `spreadsheetId/sheetTab/dataRange` columns and
+syncs **unchanged**. When `sourceConfig` is populated it wins.
+
+### Google Drive file (csv / xlsx)
+
+1. **Share the file with the service-account email** (`client_email` in
+   `GOOGLE_SERVICE_ACCOUNT_JSON`), role **Viewer**. *This is the #1 gotcha* — an unshared file
+   returns a clear "share the file with the service-account email" error, not a cryptic 403.
+2. Copy the **file id** from its URL (`drive.google.com/file/d/<FILE_ID>/view`).
+3. New Connector → **Source = Google Drive file** → paste the File ID. For **xlsx**, optionally
+   set a **Sheet name** (defaults to the first worksheet); **csv** ignores it. **Header rows to
+   skip** defaults to **1** (mirrors a Sheets `A2:…` range that already excludes the header).
+4. Map fields by **0-based column index** (A = 0, B = 1, …) — same builder as Sheets; the only
+   difference is the source of the rows. The whole transform/write path is reused unchanged.
+5. A **native Google Sheet** stored in Drive is *not* a csv/xlsx file — use the **Google Sheets**
+   source (its sheet id) instead; the Drive fetch will tell you so.
+
+Drive uses the **same service-account** as Sheets — only the Drive read-only scope is added. No
+OAuth (that's OneDrive / E3).
+
+> **Security note:** the service-account key was previously exposed (pasted in chat). Adding the
+> Drive scope is a good moment to **rotate the key** in the Google Cloud console and update
+> `GOOGLE_SERVICE_ACCOUNT_JSON`. After rotating, re-share any Drive files with the new
+> service-account email if it changed.

@@ -66,6 +66,18 @@ export async function POST(request, { params }) {
   const question = (body.question ?? '').trim()
   if (!question) return NextResponse.json({ error: 'Question is required' }, { status: 400 })
 
+  // Part D — OPTIONAL page-context (the analytics module the user is viewing). Server-
+  // rendered engine output the page already fetched + trimmed (lib/analytics/ai-context).
+  // ADDITIVE: injected ALONGSIDE the legacy keyword-routed DATA block, never instead of
+  // it. Bounded server-side as a backstop so an oversized payload can't blow the budget.
+  const viewModule = typeof body.module === 'string' ? body.module.slice(0, 64) : null
+  let pageContextStr = ''
+  if (viewModule && body.pageContext != null) {
+    try { pageContextStr = JSON.stringify(body.pageContext) } catch { pageContextStr = '' }
+    if (pageContextStr.length > 14000) pageContextStr = pageContextStr.slice(0, 14000) + '…(truncated)'
+  }
+  const hasPageContext = !!pageContextStr
+
   const chartMode = CHART_TRIGGERS.some(t => question.toLowerCase().includes(t))
 
   // Step 2 — load history (pre-question), ordered oldest→newest.
@@ -118,11 +130,37 @@ export async function POST(request, { params }) {
       (ctx.talent    ? '\nTALENT:\n' + JSON.stringify(ctx.talent) : '') +
       (ctx.affiliate ? '\nAFFILIATE:\n' + JSON.stringify(ctx.affiliate) : '')
 
+    // Part D — "CURRENT VIEW" block: the exact data on the user's analytics screen,
+    // honesty flags included. Injected ALONGSIDE the legacy DATA block (not instead).
+    const viewSection = hasPageContext
+      ? `\n\nCURRENT VIEW — the analytics module the user is looking at RIGHT NOW (module="${viewModule}"). ` +
+        'This is the EXACT data rendered on their screen, including honesty flags ' +
+        '(_honesty digest + per-row dummy / smallSample / coveragePct / costReal / returnDummy / note). ' +
+        'Ground your answer in THESE numbers when the question is about this view:\n' + pageContextStr
+      : ''
+    const honestyInstruction = hasPageContext
+      ? '\n\nHONESTY (critical): if a figure is flagged dummy, small-sample (smallSample), low-coverage ' +
+        '(low coveragePct), cost-real-but-return-dummy (costReal=true / returnDummy=true), or self-reported ' +
+        '(selfReportedGmv), EXPLAIN that caveat plainly and never present it as reliable. A single co-occurrence ' +
+        '(n=1) lift is noise, not a real association. Prefer the honest aggregate/coverage figure over any ' +
+        'fabricated or extrapolated number.'
+      : ''
+    // §3.4 critical distinction — on the forecast module the LLM NARRATES, it never predicts.
+    const forecastGuard = viewModule === 'forecast'
+      ? '\n\nFORECASTING (critical): You are a NARRATIVE assistant. NEVER predict, estimate, project, or invent ' +
+        'future sales/revenue numbers — a statistical model does that, and ONLY once ≥12 months of history exist ' +
+        '(the readiness gate). If asked to forecast or for a future number, DECLINE to give a figure, explain the ' +
+        'gate and the current month count, and (optionally) describe the REAL historical trend. Give NO projected number.'
+      : ''
+
     const system =
       'You are a marketing analyst for this brand. Use ONLY the provided data and conversation context. ' +
       'Do not invent figures. Amounts are in Indonesian Rupiah (IDR).' +
       (summary ? `\n\nPrevious context: ${summary}` : '') +
       `\n\n${dataSection}` +
+      viewSection +
+      honestyInstruction +
+      forecastGuard +
       (ctx.talentGated ? '\n\nNote: talent/payment data is restricted for this user — do not speculate about talent finances.' : '') +
       (chartMode ? CHART_INSTRUCTION : '')
 
@@ -190,6 +228,7 @@ export async function POST(request, { params }) {
       compacted,
       sources:   ctx.sources,
       talentGated: ctx.talentGated ?? false,
+      viewModule,   // Part D — echoes the grounded module (null for legacy chat)
     })
   } catch (err) {
     console.error('chat message Claude call failed:', err?.message)
