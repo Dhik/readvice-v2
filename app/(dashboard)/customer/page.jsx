@@ -7,6 +7,7 @@ import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
 import CrossLink from '@/components/dashboard/CrossLink'
+import PlatformBadge from '@/components/ui/PlatformBadge'
 import { seriesColor, withAlpha, SEMANTIC, baseOptions, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, currentMonth } from '@/lib/utils'
 
@@ -19,7 +20,7 @@ const CUSTOMER_COLUMNS = [
   { key: 'orders',    label: 'Orders',     sortable: true, sortType: 'number', align: 'right', format: v => formatNumber(v) },
   { key: 'gmv',       label: 'Total GMV',  sortable: true, sortType: 'number', align: 'right', format: v => formatCurrency(v) },
   { key: 'lastOrder', label: 'Last Order', sortable: true, sortType: 'date' },
-  { key: 'platforms', label: 'Platform' },
+  { key: 'platforms', label: 'Platform', render: c => <PlatformBadge platform={c.platforms} /> },
 ]
 
 export default function CustomerPage() {

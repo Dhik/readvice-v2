@@ -54,8 +54,9 @@
   .topbar-title { @apply text-dark1 font-semibold text-base; }
   .topbar-toggle { @apply w-8 h-8 flex items-center justify-center rounded text-dark1/60 hover:bg-cream/60 hover:text-dark1 transition-colors cursor-pointer border-none bg-transparent flex-shrink-0; }
 
-  /* Page layout */
-  .sv-page { @apply flex flex-col overflow-hidden; height: calc(100vh - 54px); }
+  /* Page layout — .sv-page is defined ONCE below (in the page-layout block). The
+     earlier duplicate that lived here was redundant (the later def already won the
+     cascade, adding gap-2 + the Inter font); collapsed to a single definition. */
   .sv-tab-body { @apply flex-1 overflow-hidden flex flex-col; }
   .sv-table-panel { @apply flex flex-col bg-white rounded-lg shadow-sm overflow-hidden; flex: 0 0 62%; }
   .sv-chart-panel { @apply flex flex-col bg-white rounded-lg shadow-sm overflow-hidden; flex: 1; }
@@ -117,8 +118,15 @@
   .main-content { @apply ml-64; transition: margin-left 0.25s ease; }
   .main-content.main-collapsed { @apply ml-16; }
 
-  /* ── Campaign page layout ─────────────────────────── */
-  .sv-page { @apply flex flex-col gap-2 overflow-hidden; height: calc(100vh - 54px); font-family: 'Inter', sans-serif; }
+  /* ── Page layout (the single .sv-page definition) ─────────────────────────── */
+  /* overflow-y:auto (not hidden) so multi-card pages that exceed one screen SCROLL
+     instead of clipping on short viewports. `height` is kept so single-screen pages
+     and their internal panel-scroll (.sv-main > .sv-table-panel) behave IDENTICALLY:
+     when content fits, `auto` shows no scrollbar; when it overflows, .sv-page scrolls
+     within <main> — and since .sv-page == <main>'s height, <main> doesn't also scroll,
+     so there is exactly ONE scrollbar (no nested/double scroll). Mobile (@media below)
+     overrides to height:auto + overflow:visible and lets <main> scroll instead. */
+  .sv-page { @apply flex flex-col gap-2; height: calc(100vh - 54px); overflow-y: auto; overflow-x: hidden; font-family: 'Inter', sans-serif; }
   .sv-topbar { @apply bg-white border border-cream rounded-lg px-3 py-1.5 flex items-center gap-1.5 flex-wrap flex-shrink-0; }
   .sv-topbar-title { @apply text-sm font-bold text-dark1 pr-2 border-r-2 border-cream mr-0.5 whitespace-nowrap; }
   .sv-tbtn { @apply inline-flex items-center gap-1 text-xs h-7 px-2.5 rounded font-medium cursor-pointer transition-all whitespace-nowrap no-underline border border-transparent; line-height: 1; }
@@ -354,6 +362,26 @@
 /* Scroll reveal */
 .reveal { opacity: 0; transform: translateY(24px); transition: opacity .6s ease, transform .6s ease; }
 .reveal.visible { opacity: 1; transform: translateY(0); }
+
+/* ── Welcome jumbotron animations (dashboard) ───────────────────────────────── */
+@keyframes jumboRise  { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+@keyframes jumboFloat { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-9px); } }
+@keyframes jumboPulse { 0%, 100% { opacity: 1; r: 5; } 50% { opacity: .45; r: 6.5; } }
+@keyframes jumboBlink { 0%, 92%, 100% { transform: scaleY(1); } 96% { transform: scaleY(0.1); } }
+@keyframes jumboWave  { 0%, 60%, 100% { transform: rotate(0deg); } 70% { transform: rotate(16deg); } 80% { transform: rotate(-8deg); } 90% { transform: rotate(12deg); } }
+@keyframes jumboOrb   { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(14px, -12px); } }
+
+.jumbo-rise  { animation: jumboRise .5s ease both; }
+.jumbo-float { animation: jumboFloat 4s ease-in-out infinite; }
+.jumbo-pulse { animation: jumboPulse 1.8s ease-in-out infinite; }
+.jumbo-blink { transform-box: fill-box; transform-origin: center; animation: jumboBlink 5s ease-in-out infinite; }
+.jumbo-wave  { transform-origin: 70% 70%; animation: jumboWave 3s ease-in-out infinite; }
+.jumbo-orb   { position: absolute; border-radius: 9999px; pointer-events: none; animation: jumboOrb 9s ease-in-out infinite; }
+.jumbo-orb-slow { animation-duration: 13s; }
+
+@media (prefers-reduced-motion: reduce) {
+  .jumbo-rise, .jumbo-float, .jumbo-pulse, .jumbo-blink, .jumbo-wave, .jumbo-orb { animation: none; }
+}
 
 /* Mobile sidebar + main-content responsive overrides */
 @media (max-width: 767px) {

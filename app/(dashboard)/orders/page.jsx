@@ -8,6 +8,7 @@ import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataTable from '@/components/table/DataTable'
 import ImportModal from '@/components/ui/ImportModal'
 import CrossLink from '@/components/dashboard/CrossLink'
+import PlatformBadge from '@/components/ui/PlatformBadge'
 import { seriesColor, withAlpha, SEMANTIC, baseOptions, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, formatDate, currentMonth } from '@/lib/utils'
 
@@ -18,7 +19,7 @@ const Empty = ({ text = 'No data', h = 140 }) => <div style={{ height: h }} clas
 
 const COLUMNS = [
   { accessorKey: 'orderDate',        header: 'Date',     cell: ({ getValue }) => formatDate(getValue()) },
-  { accessorKey: 'platform',         header: 'Platform' },
+  { accessorKey: 'platform',         header: 'Platform', cell: ({ getValue }) => <PlatformBadge platform={getValue()} /> },
   { accessorKey: 'orderId',          header: 'Order ID', cell: ({ getValue }) => <span className="font-mono text-[10px]">{getValue() ?? '—'}</span> },
   { accessorKey: 'customerName',     header: 'Customer', cell: ({ getValue }) => getValue() ?? '—' },
   { accessorKey: 'gmv',              header: 'GMV',      cell: ({ getValue }) => formatCurrency(Number(getValue() ?? 0)) },

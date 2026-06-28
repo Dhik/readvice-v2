@@ -6,6 +6,7 @@ import CompactTopbar from '@/components/dashboard/CompactTopbar'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import CrossLink from '@/components/dashboard/CrossLink'
+import WelcomeJumbotron from '@/components/dashboard/WelcomeJumbotron'
 import { seriesColor, platformColor, withAlpha, baseOptions, mergeOptions } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, currentMonth } from '@/lib/utils'
 
@@ -52,6 +53,14 @@ export default function DashboardPage() {
   const platforms = data?.platforms ?? []
   const statuses = data?.statuses ?? []
   const products = data?.products ?? []
+
+  // ── Live overview chips for the welcome jumbotron (from the same dashboard data) ──
+  const chips = data ? [
+    { icon: 'fa-dollar-sign', label: 'Sales · this month', value: formatCurrency(k.sales ?? 0), accent: '#E07B39' },
+    { icon: 'fa-receipt',     label: 'Orders',             value: formatNumber(k.orders ?? 0),  accent: '#6B8E9E' },
+    { icon: 'fa-store',       label: 'Top platform',       value: platforms[0]?.platform ?? '—', accent: '#A9C5A0' },
+    { icon: 'fa-trophy',      label: 'Top product',        value: products[0]?.name ?? '—',      accent: '#C9A66B' },
+  ] : []
 
   // ── 8 KPI tiles (visit/spent-derived = dummy → dev badge) ──
   const tiles = [
@@ -133,6 +142,9 @@ export default function DashboardPage() {
         <input type="month" value={month} onChange={e => setMonth(e.target.value)}
           className="border border-cream rounded text-xs px-2 py-1 h-7 bg-white text-dark1 focus:outline-none focus:border-dark2" />
       </CompactTopbar>
+
+      {/* Welcome hero — the face of the app (personalized greeting + mascot + live chips) */}
+      <WelcomeJumbotron chips={chips} loading={loading && !data} />
 
       <IconKpiStrip tiles={tiles} />
 

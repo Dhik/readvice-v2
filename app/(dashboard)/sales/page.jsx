@@ -8,6 +8,7 @@ import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import ImportModal from '@/components/ui/ImportModal'
 import SyncButton from '@/components/ui/SyncButton'
+import GsSyncButton from '@/components/ui/GsSyncButton'
 import CrossLink from '@/components/dashboard/CrossLink'
 import { seriesColor, platformColor, withAlpha, SEMANTIC, baseOptions, mergeOptions, zoomReady } from '@/lib/charts/theme'
 import { formatCurrency, formatNumber, currentMonth } from '@/lib/utils'
@@ -148,11 +149,12 @@ export default function SalesPage() {
   })
 
   return (
-    <CompactPage>
+    <CompactPage scroll={false}>
       <CompactTopbar title="Sales" icon="fa-chart-line"
         actions={<>
           <CrossLink href="/analytics/gross-margin" label="View full analysis" />
           <button onClick={() => setShowImport(true)} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-upload" /> Import</button>
+          <GsSyncButton endpoint="/api/import/gs/visits" label="Sync visits" icon="fa-eye" onDone={() => setRefresh(r => r + 1)} />
           <SyncButton endpoint="/api/import/gs/orders/cleora-shopee" label="Sync" />
           <button onClick={exportExcel} disabled={!daily.length} className="sv-tbtn sv-tbtn-success disabled:opacity-40"><i className="fas fa-file-excel" /> Export</button>
         </>}>
@@ -163,63 +165,67 @@ export default function SalesPage() {
 
       <IconKpiStrip tiles={tiles} />
 
-      {/* Row 1: recap line (2/3) + platform donut (1/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mt-2">
-        <CompactPanel title="Daily Recap" icon="fa-chart-line" className="lg:col-span-2"
-          headerRight={
-            <div className="flex items-center gap-1">
-              {zoomOn && recapData && <button onClick={() => recapRef.current?.resetZoom?.()} className="text-[10px] text-orange hover:underline mr-1">reset</button>}
-              <div className="flex gap-0.5">
-                {METRICS.map(m => (
-                  <button key={m.k} onClick={() => setMetric(m.k)}
-                    className={`text-[10px] px-1.5 py-0.5 rounded ${metric === m.k ? 'bg-dark1 text-white' : 'text-dark1/50 hover:text-dark1'}`}>{m.l}</button>
+      {/* Charts fill the remaining viewport height — 3 equal rows, no page scroll */}
+      <div className="flex-1 flex flex-col gap-2 min-h-0 mt-2">
+
+        {/* Row 1: recap line (2/3) + platform donut (1/3) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 auto-rows-fr gap-2 flex-1 min-h-0">
+          <CompactPanel title="Daily Recap" icon="fa-chart-line" className="lg:col-span-2"
+            headerRight={
+              <div className="flex items-center gap-1">
+                {zoomOn && recapData && <button onClick={() => recapRef.current?.resetZoom?.()} className="text-[10px] text-orange hover:underline mr-1">reset</button>}
+                <div className="flex gap-0.5">
+                  {METRICS.map(m => (
+                    <button key={m.k} onClick={() => setMetric(m.k)}
+                      className={`text-[10px] px-1.5 py-0.5 rounded ${metric === m.k ? 'bg-dark1 text-white' : 'text-dark1/50 hover:text-dark1'}`}>{m.l}</button>
+                  ))}
+                </div>
+              </div>
+            }>
+            {recapData ? <div className="h-full"><Line key={zoomOn ? 'z' : 'nz'} ref={recapRef} data={recapData} options={recapOpts} /></div> : <Empty text="No data this month" h="100%" />}
+          </CompactPanel>
+          <CompactPanel title="Platform Split" icon="fa-store">
+            {platDonut ? <div className="h-full"><Doughnut data={platDonut} options={platOpts} /></div> : <Empty text="No platform data" h="100%" />}
+          </CompactPanel>
+        </div>
+
+        {/* Row 2: status progress bars (1/3) + profitability quadrant (2/3) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 auto-rows-fr gap-2 flex-1 min-h-0">
+          <CompactPanel title="Order Status" icon="fa-list-check">
+            {statuses.length ? (
+              <div className="flex flex-col gap-1.5 py-1">
+                {statuses.slice(0, 8).map(s => (
+                  <div key={s.status}>
+                    <div className="flex items-center justify-between text-[10px] mb-0.5">
+                      <span className="truncate pr-2" style={{ color: s.excluded ? '#dc3545' : '#2C3639' }}>{s.status}</span>
+                      <span className="text-dark1/50 flex-shrink-0">{formatNumber(s.orders)} · {s.ordersPct}%</span>
+                    </div>
+                    <div className="h-1.5 bg-dark1/8 rounded-full overflow-hidden">
+                      <div className="h-full rounded-full" style={{ width: `${s.ordersPct}%`, background: s.excluded ? withAlpha('#dc3545', 0.6) : seriesColor(0) }} />
+                    </div>
+                  </div>
                 ))}
               </div>
-            </div>
-          }>
-          {recapData ? <div style={{ height: 150 }}><Line key={zoomOn ? 'z' : 'nz'} ref={recapRef} data={recapData} options={recapOpts} /></div> : <Empty text="No data this month" h={150} />}
-        </CompactPanel>
-        <CompactPanel title="Platform Split" icon="fa-store">
-          {platDonut ? <div style={{ height: 150 }}><Doughnut data={platDonut} options={platOpts} /></div> : <Empty text="No platform data" h={150} />}
-        </CompactPanel>
+            ) : <Empty text="No orders this month" />}
+          </CompactPanel>
+          <CompactPanel title="Profitability Quadrant" icon="fa-star" className="lg:col-span-2"
+            headerRight={<span className="text-[9px] text-dark1/40">size=revenue · color=quadrant · real OrderItem</span>}>
+            {bubbleData ? <div className="h-full"><Bubble data={bubbleData} options={bubbleOpts} /></div>
+              : <Empty text="No product-cost data (needs synced products with hargaCogs)" h="100%" />}
+          </CompactPanel>
+        </div>
+
+        {/* Row 3: margin Pareto */}
+        <div className="flex-1 min-h-0">
+          <CompactPanel title="Margin Pareto — which products drive profit" icon="fa-trophy" className="h-full"
+            headerRight={<span className="text-[9px] text-dark1/40">bars=margin · line=cumulative % · dashed=80% · real OrderItem</span>}>
+            {paretoData ? <div className="h-full"><Chart type="bar" data={paretoData} options={paretoOpts} /></div>
+              : <Empty text="No product-cost data (needs synced products with hargaCogs)" h="100%" />}
+          </CompactPanel>
+        </div>
       </div>
 
-      {/* Row 2: status progress bars (1/3) + profitability quadrant (2/3) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-2 mt-2">
-        <CompactPanel title="Order Status" icon="fa-list-check">
-          {statuses.length ? (
-            <div className="flex flex-col gap-1.5 py-1">
-              {statuses.slice(0, 8).map(s => (
-                <div key={s.status}>
-                  <div className="flex items-center justify-between text-[10px] mb-0.5">
-                    <span className="truncate pr-2" style={{ color: s.excluded ? '#dc3545' : '#2C3639' }}>{s.status}</span>
-                    <span className="text-dark1/50 flex-shrink-0">{formatNumber(s.orders)} · {s.ordersPct}%</span>
-                  </div>
-                  <div className="h-1.5 bg-dark1/8 rounded-full overflow-hidden">
-                    <div className="h-full rounded-full" style={{ width: `${s.ordersPct}%`, background: s.excluded ? withAlpha('#dc3545', 0.6) : seriesColor(0) }} />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : <Empty text="No orders this month" />}
-        </CompactPanel>
-        <CompactPanel title="Profitability Quadrant" icon="fa-star" className="lg:col-span-2"
-          headerRight={<span className="text-[9px] text-dark1/40">size=revenue · color=quadrant · real OrderItem</span>}>
-          {bubbleData ? <div style={{ height: 160 }}><Bubble data={bubbleData} options={bubbleOpts} /></div>
-            : <Empty text="No product-cost data (needs synced products with hargaCogs)" h={160} />}
-        </CompactPanel>
-      </div>
-
-      {/* Row 3: margin Pareto */}
-      <div className="mt-2">
-        <CompactPanel title="Margin Pareto — which products drive profit" icon="fa-trophy"
-          headerRight={<span className="text-[9px] text-dark1/40">bars=margin · line=cumulative % · dashed=80% · real OrderItem</span>}>
-          {paretoData ? <div style={{ height: 160 }}><Chart type="bar" data={paretoData} options={paretoOpts} /></div>
-            : <Empty text="No product-cost data (needs synced products with hargaCogs)" h={160} />}
-        </CompactPanel>
-      </div>
-
-      {loading && !data && <div className="text-center text-dark1/30 text-xs py-4">Loading…</div>}
+      {loading && !data && <div className="text-center text-dark1/30 text-xs py-1 flex-shrink-0">Loading…</div>}
 
       {showImport && (
         <ImportModal title="Import Orders" endpoint="/api/import/orders?platform=shopee"

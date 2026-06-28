@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState, useCallback } from 'react'
 import CompactPage from '@/components/dashboard/CompactPage'
 import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
 import CompactTopbar from '@/components/dashboard/CompactTopbar'
+import GsSyncButton from '@/components/ui/GsSyncButton'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
@@ -97,7 +98,10 @@ export default function OperationalPage() {
   return (
     <CompactPage>
       <CompactTopbar title="Operational" icon="fa-gears"
-        actions={<button onClick={() => download('operational-stock.csv', toCsv(gridRows), 'text/csv')} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-file-csv" /> CSV</button>}>
+        actions={<>
+          <GsSyncButton endpoint="/api/import/gs/order-fulfillment" label="Sync fulfilment" icon="fa-rotate" />
+          <button onClick={() => download('operational-stock.csv', toCsv(gridRows), 'text/csv')} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-file-csv" /> CSV</button>
+        </>}>
         <span className="text-[10px] text-dark1/45">Efficiency lens · all orders</span>
       </CompactTopbar>
 

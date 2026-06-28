@@ -3,6 +3,36 @@ import { useEffect, useRef, useState } from 'react'
 import { Chart } from 'chart.js'
 import { seriesColor, withAlpha } from '@/lib/charts/theme'
 
+// A raw social watch-page URL can't be iframed (TikTok/IG/YouTube send X-Frame-Options).
+// Convert it to the platform's embeddable URL. Returns { src, platform } or null if the
+// link isn't embeddable (caller then shows an "Open ↗" fallback instead of a blank frame).
+function resolveEmbed(raw) {
+  if (!raw || typeof raw !== 'string') return null
+  let url
+  try { url = new URL(raw.trim().startsWith('http') ? raw.trim() : 'https://' + raw.trim()) }
+  catch { return null }
+  const host = url.hostname.replace(/^www\./, '').toLowerCase()
+  const p = url.pathname
+
+  if (host.includes('youtube.com') || host === 'youtu.be') {
+    let id = ''
+    if (host === 'youtu.be') id = p.split('/')[1]
+    else if (p.startsWith('/shorts/')) id = p.split('/')[2]
+    else if (p.startsWith('/embed/')) id = p.split('/')[2]
+    else id = url.searchParams.get('v') || ''
+    if (id) return { src: `https://www.youtube.com/embed/${id}`, platform: 'YouTube' }
+  }
+  if (host.includes('tiktok.com')) {
+    const m = p.match(/\/video\/(\d+)/)
+    if (m) return { src: `https://www.tiktok.com/embed/v2/${m[1]}`, platform: 'TikTok' }
+  }
+  if (host.includes('instagram.com')) {
+    const m = p.match(/\/(p|reel|tv)\/([^/?#]+)/)
+    if (m) return { src: `https://www.instagram.com/${m[1]}/${m[2]}/embed/`, platform: 'Instagram' }
+  }
+  return null // shopee / unknown / non-embeddable → fallback link
+}
+
 export default function DetailAnalyticsModal({ isOpen, onClose, contentId }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(false)
@@ -106,21 +136,43 @@ export default function DetailAnalyticsModal({ isOpen, onClose, contentId }) {
           <div className="flex-1 overflow-y-auto p-4">
             <div className="flex gap-4">
               {/* Left: embed */}
-              <div className="flex-shrink-0" style={{ width: '240px' }}>
+              <div className="flex-shrink-0" style={{ width: '280px' }}>
                 <div className="text-[10px] font-semibold text-dark2 uppercase mb-2">Content Preview</div>
-                {meta.link ? (
-                  <iframe
-                    src={meta.link}
-                    className="w-full rounded border border-cream"
-                    style={{ height: '320px' }}
-                    allowFullScreen
-                    sandbox="allow-scripts allow-same-origin allow-popups"
-                  />
-                ) : (
-                  <div className="w-full h-60 border border-cream rounded flex items-center justify-center text-xs text-gray-400">
-                    No link available
-                  </div>
-                )}
+                {(() => {
+                  const embed = resolveEmbed(meta.link)
+                  if (embed) {
+                    return (
+                      <iframe
+                        src={embed.src}
+                        title={`${embed.platform} content preview`}
+                        className="w-full rounded border border-cream bg-black/5"
+                        style={{ height: '480px' }}
+                        loading="lazy"
+                        allow="autoplay; encrypted-media; picture-in-picture; fullscreen"
+                        allowFullScreen
+                        sandbox="allow-scripts allow-same-origin allow-popups allow-presentation"
+                      />
+                    )
+                  }
+                  if (meta.link) {
+                    // Not embeddable (Shopee / unknown host, or a watch page that blocks framing) —
+                    // give a real "Open ↗" affordance instead of a guaranteed-blank iframe.
+                    return (
+                      <a href={meta.link} target="_blank" rel="noopener noreferrer"
+                        className="w-full h-60 border border-dashed border-cream rounded flex flex-col items-center justify-center gap-2 text-center px-3 text-dark2 hover:bg-bg/60 transition">
+                        <i className="fas fa-up-right-from-square text-xl text-orange" />
+                        <span className="text-xs font-semibold">Open content in a new tab</span>
+                        <span className="text-[10px] text-dark1/45 break-all line-clamp-2">{meta.link}</span>
+                        <span className="text-[9px] text-dark1/35">This platform can't be embedded inline.</span>
+                      </a>
+                    )
+                  }
+                  return (
+                    <div className="w-full h-60 border border-cream rounded flex items-center justify-center text-xs text-dark1/40">
+                      No link available
+                    </div>
+                  )
+                })()}
               </div>
 
               {/* Right: metrics + charts */}

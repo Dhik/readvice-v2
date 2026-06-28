@@ -754,6 +754,27 @@ model CohortRetention {
   @@map("cohort_retention")
 }
 
+// ─── Tenant P&L config (Wave 3.3 — Net P&L business rules) ───────────────────
+// ONE row per tenant. The configurable layers of the Net-P&L waterfall: platform
+// fees (per-platform %), tax %, and user-entered opex categories. Factual defaults
+// live in the engine (lib/analytics/pnl-summary.js) and are used when NO row exists;
+// saving here flips those layers from "default rate" to "configured". opexCategories
+// is EMPTY until the tenant enters it — net is gated "before opex" until then, NEVER
+// a fabricated number (the NP3 principle). On-the-fly otherwise; this is the only
+// persisted state Net P&L adds.
+model TenantPnlConfig {
+  id                Int      @id @default(autoincrement())
+  tenantId          Int      @unique @map("tenant_id")
+  platformFeePct    Json     @map("platform_fee_pct")   // { shopee:8, tiktok:8, tokopedia:7, lazada:6, default:8 }
+  taxPct            Float    @default(0.5) @map("tax_pct") // UMKM final income tax (PP 55/2022), overridable
+  opexCategories    Json     @default("[]") @map("opex_categories") // [{ label, amount }|{ label, pct }] — EMPTY default
+  marketingDeducted Boolean  @default(true) @map("marketing_deducted")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("tenant_pnl_config")
+}
+
 // ─── Calculated Fields (Part B — user-defined analytics metrics) ─────────────
 // Tenant-scoped, per-module user-defined metrics. `formula` is an arithmetic-only
 // expression over a module's FIELD_MANIFEST param keys (e.g. "(revenue-hpp)/hpp*100"),

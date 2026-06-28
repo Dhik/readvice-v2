@@ -8,6 +8,7 @@ import Link from 'next/link'
 import CompactPage from '@/components/dashboard/CompactPage'
 import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
 import CompactTopbar from '@/components/dashboard/CompactTopbar'
+import GsSyncButton from '@/components/ui/GsSyncButton'
 import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
@@ -177,6 +178,7 @@ export default function BcgMatrixView({ lens = 'traffic' }) {
         actions={
           <>
             <button onClick={openRecs} className="sv-tbtn sv-tbtn-dark"><i className="fas fa-lightbulb" /> Recommendations</button>
+            <GsSyncButton endpoint="/api/import/gs/bcg/metrics" label="Sync metrics" icon="fa-rotate" />
             <button onClick={() => setShowAdv(true)} className={`sv-tbtn ${filtered ? 'sv-tbtn-primary' : 'sv-tbtn-ghost'}`}><i className="fas fa-filter" /> Filter{filtered ? ' •' : ''}</button>
             <Link href={cfg.other.href} className="sv-tbtn sv-tbtn-ghost">{cfg.other.label}</Link>
           </>

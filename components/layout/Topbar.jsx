@@ -1,10 +1,11 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
+import Link from 'next/link'
 import { signOut, useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
-  faSignOutAlt, faUser, faBars, faChevronLeft, faChevronRight,
+  faSignOutAlt, faUser, faBars, faRobot,
   faBuilding, faChevronDown, faCheck, faSpinner,
 } from '@fortawesome/free-solid-svg-icons'
 import toast from 'react-hot-toast'
@@ -71,10 +72,7 @@ export default function Topbar({ title, onToggle, onMobileMenu, collapsed }) {
           className="topbar-toggle hidden md:flex"
           title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
         >
-          <FontAwesomeIcon
-            icon={collapsed ? faChevronRight : faChevronLeft}
-            className="w-3.5 h-3.5"
-          />
+          <FontAwesomeIcon icon={faBars} className="w-3.5 h-3.5" />
         </button>
 
         {/* Mobile: hamburger */}
@@ -90,6 +88,16 @@ export default function Topbar({ title, onToggle, onMobileMenu, collapsed }) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* AI Insights — quick access (the page is no longer in the sidebar) */}
+        <Link
+          href="/ads/ai-insights"
+          title="AI Insights"
+          aria-label="AI Insights"
+          className="w-8 h-8 rounded-lg flex items-center justify-center bg-orange/10 text-orange hover:bg-orange hover:text-white transition-colors"
+        >
+          <FontAwesomeIcon icon={faRobot} className="w-3.5 h-3.5" />
+        </Link>
+
         {/* Brand switcher — only shown when user has access to more than one tenant */}
         {tenants.length > 1 && (
           <div className="relative" ref={dropdownRef}>

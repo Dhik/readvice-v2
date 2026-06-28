@@ -152,6 +152,13 @@ export async function POST(request, { params }) {
         '(the readiness gate). If asked to forecast or for a future number, DECLINE to give a figure, explain the ' +
         'gate and the current month count, and (optionally) describe the REAL historical trend. Give NO projected number.'
       : ''
+    // §3.3 Net P&L — never present a not-entered-opex net as final/real.
+    const pnlGuard = viewModule === 'pnl'
+      ? '\n\nNET P&L (critical): explain which layers are REAL (revenue, COGS, marketing), which are FACTUAL DEFAULT ' +
+        'rates the tenant can edit (platform fee, tax), and which is USER-ENTERED (opex). If opex is not entered ' +
+        '(opexEntered=false / net is null), the net is "BEFORE opex" — DO NOT present any figure as the final/true net ' +
+        'profit; say it is gated on entering opex. Never fabricate a net number.'
+      : ''
 
     const system =
       'You are a marketing analyst for this brand. Use ONLY the provided data and conversation context. ' +
@@ -161,6 +168,7 @@ export async function POST(request, { params }) {
       viewSection +
       honestyInstruction +
       forecastGuard +
+      pnlGuard +
       (ctx.talentGated ? '\n\nNote: talent/payment data is restricted for this user — do not speculate about talent finances.' : '') +
       (chartMode ? CHART_INSTRUCTION : '')
 

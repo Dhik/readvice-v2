@@ -14,6 +14,7 @@ import IconKpiStrip from '@/components/dashboard/IconKpiStrip'
 import CompactPanel from '@/components/dashboard/CompactPanel'
 import DataGrid from '@/components/table/DataGrid'
 import CrossLink from '@/components/dashboard/CrossLink'
+import GsSyncButton from '@/components/ui/GsSyncButton'
 import { TalentRoiQuadrant, RoiLeaderboard, CostReturnDumbbell, TypeRadar, REAL_COLOR, DUMMY_COLOR, objectiveColor } from '@/components/talent-roi/TalentRoiCharts'
 import { TalentDetailModal, RecommendationsModal, QuadBadge } from '@/components/talent-roi/TalentRoiModals'
 import AnalyticsAIPanel from '@/components/analytics/AnalyticsAIPanel'
@@ -168,6 +169,7 @@ export default function TalentRoiPage() {
         actions={
           <>
             <button onClick={openRecs} className="sv-tbtn sv-tbtn-dark"><i className="fas fa-lightbulb" /> Recommendations</button>
+            <GsSyncButton endpoint="/api/import/gs/talent-returns" label="Sync returns" icon="fa-rotate" />
             <button onClick={() => download(`talent-roi-${filter}-${month || 'all'}.csv`, toCsv(gridRows), 'text/csv')} className="sv-tbtn sv-tbtn-ghost"><i className="fas fa-file-csv" /> CSV</button>
             <CrossLink href="/talent" label="Manage data" icon="fa-pen-to-square" />
           </>

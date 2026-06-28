@@ -6,11 +6,11 @@ import { useSession } from 'next-auth/react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
   faChartLine, faShoppingCart, faBullhorn,
-  faFilm, faMoneyBillWave, faFileAlt, faUserFriends,
+  faMoneyBillWave, faUserFriends,
   faTachometerAlt, faTimes, faIdCard, faCamera,
   faCreditCard, faChartBar, faCheckCircle,
   faStore, faChevronDown, faChartPie,
-  faCog, faBuilding, faUsers, faRobot, faPlug, faCubes, faChartColumn, faCoins, faWarehouse, faTableCells, faDiagramProject, faArrowTrendUp, faBullseye,
+  faCog, faBuilding, faUsers, faPlug, faCubes, faChartColumn, faCoins, faWarehouse, faTableCells, faDiagramProject, faArrowTrendUp, faBullseye, faScaleBalanced, faSliders,
 } from '@fortawesome/free-solid-svg-icons'
 
 // Nav structure (Part A — IA regroup by theme): four render modes —
@@ -21,67 +21,60 @@ import {
 // Routes / icons / permission gates are preserved from the original flat nav —
 // this is a reorder/regroup only.
 const NAV = [
-  // 1 ── Home / Operational ─────────────────────────────────────────────
-  { section: 'Home / Operational' },
   { label: 'Dashboard', href: '/dashboard', icon: faTachometerAlt },
-  { label: 'Sales',     href: '/sales',     icon: faChartLine },
-  { label: 'Orders',    href: '/orders',    icon: faShoppingCart },
-  { label: 'Customers', href: '/customer',  icon: faUserFriends },
-  { label: 'Report',    href: '/report',    icon: faFileAlt },
 
-  // 2 ── Analytics (themed sub-groups, not flat) ────────────────────────
+  // 1 ── Sales ──────────────────────────────────────────────────────────
+  { section: 'Sales' },
+  { label: 'Sales',     href: '/sales',    icon: faChartLine },
+  { label: 'Orders',    href: '/orders',   icon: faShoppingCart },
+  { label: 'Customers', href: '/customer', icon: faUserFriends },
   {
-    group: 'Analytics', icon: faChartBar,
+    group: 'Sales Analysis', icon: faChartBar,
     items: [
       { subheader: 'Customer' },
       { label: 'RFM Segments',     href: '/analytics/rfm',      icon: faUserFriends }, // customer segmentation (real + dummy padding)
-      { label: 'Cohort Retention', href: '/analytics/cohort',   icon: faTableCells }, // triangular heatmap, 1/36 real, becomes real w/ time
+      { label: 'Cohort Retention', href: '/analytics/cohort',   icon: faTableCells }, // triangular heatmap, becomes real w/ time
       { label: 'Market Basket',    href: '/analytics/basket',   icon: faDiagramProject }, // co-purchase affinity, real small-sample
-      { label: 'CLV',              href: '/analytics/clv',      icon: faCoins }, // Wave 3.1 — historic value real, projection dummy-flagged
-
-      { subheader: 'Marketing' },
-      { label: 'Ads Allocation',      href: '/analytics/ads-allocation',      icon: faMoneyBillWave }, // spend allocation (100% real, expense-only)
-      { label: 'Campaign Efficiency', href: '/analytics/campaign-efficiency', icon: faBullhorn }, // cross-campaign content efficiency (reported-GMV)
-      { label: 'Talent ROI',          href: '/analytics/talent-roi',          icon: faIdCard }, // real cost ÷ dummy return (Wave 2)
-      { label: 'True ROAS',           href: '/analytics/roas',                icon: faBullseye }, // Wave 3.2 — real spend ÷ dummy attribution
+      { label: 'CLV',              href: '/analytics/clv',      icon: faCoins }, // historic value real, projection dummy-flagged
 
       { subheader: 'Product & Finance' },
-      { label: 'BCG Matrix',       href: '/analytics/bcg',      icon: faChartPie }, // product matrix (dummy axes in dev)
-      { label: 'Gross Margin',     href: '/analytics/gross-margin', icon: faCoins }, // revenue − HPP (gross only, real)
-      { label: 'Product Analysis', href: '/analytics/products', icon: faCubes }, // SP1
-      { label: 'Order Analysis',   href: '/analytics/orders',   icon: faChartColumn }, // SP2
-      { label: 'AI Forecast',      href: '/analytics/forecast', icon: faArrowTrendUp }, // Wave 3.4 — readiness gate (no forecast until ≥12mo)
+      { label: 'BCG Matrix',       href: '/analytics/bcg',          icon: faChartPie },
+      { label: 'Gross Margin',     href: '/analytics/gross-margin', icon: faCoins },
+      { label: 'Product Analysis', href: '/analytics/products',     icon: faCubes }, // SP1
+      { label: 'Order Analysis',   href: '/analytics/orders',       icon: faChartColumn }, // SP2
+      { label: 'Net P&L',          href: '/analytics/pnl',          icon: faScaleBalanced },
+      { label: 'AI Forecast',      href: '/analytics/forecast',     icon: faArrowTrendUp },
 
       { subheader: 'Operations' },
-      { label: 'Operational',      href: '/analytics/operational', icon: faWarehouse }, // funnel/stock real, fulfilment dummy (Wave 2)
+      { label: 'Operational',      href: '/analytics/operational',  icon: faWarehouse },
     ],
   },
 
-  // 3 ── Marketing Modules (legacy data-entry / CRUD surfaces) ──────────
-  { section: 'Marketing Modules' },
-  { label: 'Campaigns', href: '/campaigns', icon: faBullhorn },
+  // 2 ── Marketing ──────────────────────────────────────────────────────
+  { section: 'Marketing' },
+  { label: 'Ads Spent',  href: '/ads/marketplace', icon: faMoneyBillWave },
+  { label: 'Campaigns',  href: '/campaigns',       icon: faBullhorn },
+  { label: 'Affiliate',  href: '/affiliate',       icon: faStore }, // single page, Shopee + TikTok tabs
   {
-    group: 'Talent', icon: faIdCard,
+    group: 'Marketing Analysis', icon: faChartBar,
     items: [
-      { label: 'Talent',      href: '/talent',                  icon: faIdCard },
-      { label: 'Content',     href: '/talent/content',          icon: faCamera },
-      { label: 'Payments',    href: '/talent/payments',         icon: faCreditCard },
-      { label: 'Fin. Report', href: '/talent/payments/report',  icon: faChartBar },
-      { label: 'Approval',    href: '/talent/approval',         icon: faCheckCircle },
+      { label: 'Ads Allocation',      href: '/analytics/ads-allocation',      icon: faMoneyBillWave },
+      { label: 'Campaign Efficiency', href: '/analytics/campaign-efficiency', icon: faBullhorn },
+      { label: 'True ROAS',           href: '/analytics/roas',                icon: faBullseye },
     ],
   },
+
+  // 3 ── Talents ────────────────────────────────────────────────────────
+  { section: 'Talents' },
+  { label: 'Talent',      href: '/talent',                 icon: faIdCard },
+  { label: 'Content',     href: '/talent/content',         icon: faCamera },
+  { label: 'Payments',    href: '/talent/payments',        icon: faCreditCard },
+  { label: 'Fin. Report', href: '/talent/payments/report', icon: faChartBar },
+  { label: 'Approval',    href: '/talent/approval',        icon: faCheckCircle },
   {
-    group: 'Affiliate', icon: faStore,
+    group: 'Talent Analysis', icon: faChartBar,
     items: [
-      { label: 'Shopee', href: '/affiliate/shopee', icon: faStore },
-      { label: 'TikTok', href: '/affiliate/tiktok', icon: faFilm },
-    ],
-  },
-  {
-    group: 'Ads', icon: faMoneyBillWave,
-    items: [
-      { label: 'Ad Spend',    href: '/ads/marketplace',  icon: faMoneyBillWave },
-      { label: 'AI Insights', href: '/ads/ai-insights',  icon: faRobot },
+      { label: 'Talent ROI', href: '/analytics/talent-roi', icon: faIdCard }, // real cost ÷ dummy return
     ],
   },
 
@@ -95,6 +88,7 @@ const NAV = [
     items: [
       { label: 'Tenants',    href: '/settings/tenants',    icon: faBuilding },
       { label: 'Users',      href: '/settings/users',      icon: faUsers },
+      { label: 'P&L Rules',  href: '/settings/pnl',        icon: faSliders }, // Wave 3.3 — tenant fee/tax/opex config
       { label: 'Connectors', href: '/settings/connectors', icon: faPlug, superadminOnly: true },
     ],
   },
